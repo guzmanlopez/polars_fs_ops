@@ -103,9 +103,9 @@ fn ls_dir(inputs: &[Series]) -> PolarsResult<Series> {
 fn uucp_file(inputs: &[Series], kwargs: AddProgressBarKwargs) -> PolarsResult<Series> {
     let from: &StringChunked = inputs[0].str()?;
     let to_dir: &StringChunked = inputs[1].str()?;
-    let progress_bar: bool = kwargs.progress_bar;
+    let cp_progress_bar: bool = kwargs.progress_bar;
     let options = uu_cp::Options {
-        progress_bar: progress_bar,
+        progress_bar: cp_progress_bar,
         ..Default::default()
     };
 
@@ -125,9 +125,9 @@ fn uucp_file(inputs: &[Series], kwargs: AddProgressBarKwargs) -> PolarsResult<Se
 fn uumv_file(inputs: &[Series], kwargs: AddProgressBarKwargs) -> PolarsResult<Series> {
     let from: &StringChunked = inputs[0].str()?;
     let to: &StringChunked = inputs[1].str()?;
-    let progress_bar: bool = kwargs.progress_bar;
+    let mv_progress_bar: bool = kwargs.progress_bar;
     let options = uu_mv::Options {
-        progress_bar: progress_bar,
+        progress_bar: mv_progress_bar,
         ..Default::default()
     };
 

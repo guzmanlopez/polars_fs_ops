@@ -1,15 +1,19 @@
 name: Complexity checks
 
-on: [ push, pull_request ]
+on:
+  workflow_run:
+    workflows: ["Run Tests"]
+    types: [completed]
 jobs:
   complexity-checks:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v7.6.0
 
       - name: Set up Python
         run: uv python install

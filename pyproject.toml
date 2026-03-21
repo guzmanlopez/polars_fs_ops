@@ -6,7 +6,7 @@ build-backend = "maturin"
 name = "polars-fs-ops"
 description = "A collection of file system operations implemented in Rust and exposed to Python via Polars."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 classifiers = [
   "Programming Language :: Rust",
   "Programming Language :: Python :: Implementation :: CPython",
@@ -16,7 +16,6 @@ dynamic = ["version"]
 dependencies = [
     "complexipy>=5.2.0",
     "detect-secrets>=1.5.0",
-    "develop>=0.2.1",
     "docstr-coverage>=2.3.2",
     "maturin>=1.12.6",
     "mypy>=1.14.1",

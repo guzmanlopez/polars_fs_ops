@@ -1,3 +1,10 @@
+"""Polars plugin for file system operations.
+
+Provides Polars expression functions for common file system tasks such as
+checking file existence, copying, moving, removing files, and listing
+directories. Operations are implemented in Rust for performance.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -15,6 +22,14 @@ LIB = Path(__file__).parent
 
 
 def file_exists(file_path: IntoExprColumn) -> pl.Expr:
+    """Check whether each file path exists.
+
+    Args:
+        file_path: Column or expression containing file paths.
+
+    Returns:
+        A Boolean expression indicating existence of each path.
+    """
     return register_plugin_function(
         args=[file_path],
         plugin_path=LIB,
@@ -24,6 +39,15 @@ def file_exists(file_path: IntoExprColumn) -> pl.Expr:
 
 
 def cp_file(from_path: IntoExprColumn, to_path: IntoExprColumn) -> pl.Expr:
+    """Copy files from source paths to destination paths using std::fs.
+
+    Args:
+        from_path: Column or expression containing source file paths.
+        to_path: Column or expression containing destination file paths.
+
+    Returns:
+        A Boolean expression indicating success of each copy operation.
+    """
     return register_plugin_function(
         args=[from_path, to_path],
         plugin_path=LIB,
@@ -33,6 +57,15 @@ def cp_file(from_path: IntoExprColumn, to_path: IntoExprColumn) -> pl.Expr:
 
 
 def mv_file(from_path: IntoExprColumn, to_path: IntoExprColumn) -> pl.Expr:
+    """Move (rename) files from source paths to destination paths using std::fs.
+
+    Args:
+        from_path: Column or expression containing source file paths.
+        to_path: Column or expression containing destination file paths.
+
+    Returns:
+        A Boolean expression indicating success of each move operation.
+    """
     return register_plugin_function(
         args=[from_path, to_path],
         plugin_path=LIB,
@@ -42,6 +75,14 @@ def mv_file(from_path: IntoExprColumn, to_path: IntoExprColumn) -> pl.Expr:
 
 
 def rm_file(file_path: IntoExprColumn) -> pl.Expr:
+    """Remove files at the given paths.
+
+    Args:
+        file_path: Column or expression containing file paths to remove.
+
+    Returns:
+        A Boolean expression indicating success of each removal.
+    """
     return register_plugin_function(
         args=[file_path],
         plugin_path=LIB,
@@ -51,6 +92,18 @@ def rm_file(file_path: IntoExprColumn) -> pl.Expr:
 
 
 def ls_dir(dir_path: IntoExprColumn) -> pl.Expr:
+    """List directory contents as a list of paths.
+
+    Each row returns a ``List[String]`` of full paths in the directory.
+    Use ``.explode()`` to expand into individual rows.
+
+    Args:
+        dir_path: Column or expression containing directory paths.
+
+    Returns:
+        A List(String) expression with directory entries, or null for
+        non-existent directories.
+    """
     return register_plugin_function(
         args=[dir_path],
         plugin_path=LIB,
@@ -60,6 +113,16 @@ def ls_dir(dir_path: IntoExprColumn) -> pl.Expr:
 
 
 def uucp_file(from_path: IntoExprColumn, to_path: IntoExprColumn, progress_bar: bool) -> pl.Expr:
+    """Copy files using uutils coreutils (cross-platform GNU cp rewrite).
+
+    Args:
+        from_path: Column or expression containing source file paths.
+        to_path: Column or expression containing destination directory paths.
+        progress_bar: Whether to display a progress bar during copy.
+
+    Returns:
+        A Boolean expression indicating success of each copy operation.
+    """
     return register_plugin_function(
         args=[from_path, to_path],
         plugin_path=LIB,
@@ -70,6 +133,16 @@ def uucp_file(from_path: IntoExprColumn, to_path: IntoExprColumn, progress_bar: 
 
 
 def uumv_file(from_path: IntoExprColumn, to_dir: IntoExprColumn, progress_bar: bool) -> pl.Expr:
+    """Move files using uutils coreutils (cross-platform GNU mv rewrite).
+
+    Args:
+        from_path: Column or expression containing source file paths.
+        to_dir: Column or expression containing destination paths.
+        progress_bar: Whether to display a progress bar during move.
+
+    Returns:
+        A Boolean expression indicating success of each move operation.
+    """
     return register_plugin_function(
         args=[from_path, to_dir],
         plugin_path=LIB,
@@ -80,6 +153,16 @@ def uumv_file(from_path: IntoExprColumn, to_dir: IntoExprColumn, progress_bar: b
 
 
 def cpx_file(from_path: IntoExprColumn, to_path: IntoExprColumn, parallel: int) -> pl.Expr:
+    """Copy files using cpx (high-performance Rust file copying library).
+
+    Args:
+        from_path: Column or expression containing source file paths.
+        to_path: Column or expression containing destination file paths.
+        parallel: Number of parallel copy threads (0 for default).
+
+    Returns:
+        A Boolean expression indicating success of each copy operation.
+    """
     return register_plugin_function(
         args=[from_path, to_path],
         plugin_path=LIB,

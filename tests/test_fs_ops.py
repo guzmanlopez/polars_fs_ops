@@ -1,3 +1,5 @@
+"""Tests for polars_fs_ops file system operations."""
+
 import os
 import tempfile
 
@@ -18,11 +20,21 @@ from polars_fs_ops import (
 
 @pytest.fixture
 def tmp_dir():
+    """Create a temporary directory that is cleaned up after the test."""
     with tempfile.TemporaryDirectory() as d:
         yield d
 
 
 def _create_file(path: str, content: str = "hello") -> str:
+    """Create a file with the given content and return its path.
+
+    Args:
+        path: Absolute path for the new file.
+        content: Text content to write.
+
+    Returns:
+        The same path that was passed in.
+    """
     with open(path, "w") as f:
         f.write(content)
     return path
@@ -32,6 +44,8 @@ def _create_file(path: str, content: str = "hello") -> str:
 
 
 class TestFileExists:
+    """Tests for the file_exists expression."""
+
     def test_existing_file(self, tmp_dir: str):
         path = _create_file(os.path.join(tmp_dir, "a.txt"))
         df = pl.DataFrame({"fp": [path]})
@@ -64,6 +78,8 @@ class TestFileExists:
 
 
 class TestCpFile:
+    """Tests for the cp_file expression."""
+
     def test_copy_success(self, tmp_dir: str):
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
         dst = os.path.join(tmp_dir, "dst.txt")
@@ -103,6 +119,8 @@ class TestCpFile:
 
 
 class TestMvFile:
+    """Tests for the mv_file expression."""
+
     def test_move_success(self, tmp_dir: str):
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
         dst = os.path.join(tmp_dir, "dst.txt")
@@ -125,6 +143,8 @@ class TestMvFile:
 
 
 class TestRmFile:
+    """Tests for the rm_file expression."""
+
     def test_remove_success(self, tmp_dir: str):
         path = _create_file(os.path.join(tmp_dir, "a.txt"))
         df = pl.DataFrame({"fp": [path]})
@@ -151,6 +171,8 @@ class TestRmFile:
 
 
 class TestLsDir:
+    """Tests for the ls_dir expression."""
+
     def test_list_directory(self, tmp_dir: str):
         _create_file(os.path.join(tmp_dir, "a.txt"))
         _create_file(os.path.join(tmp_dir, "b.txt"))
@@ -186,6 +208,8 @@ class TestLsDir:
 
 
 class TestUucpFile:
+    """Tests for the uucp_file expression."""
+
     def test_copy_success(self, tmp_dir: str):
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "uucp data")
         dst_dir = os.path.join(tmp_dir, "dest")
@@ -207,6 +231,8 @@ class TestUucpFile:
 
 
 class TestUumvFile:
+    """Tests for the uumv_file expression."""
+
     def test_move_success(self, tmp_dir: str):
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "uumv data")
         dst = os.path.join(tmp_dir, "dst.txt")
@@ -227,6 +253,8 @@ class TestUumvFile:
 
 
 class TestCpxFile:
+    """Tests for the cpx_file expression."""
+
     def test_copy_success(self, tmp_dir: str):
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "cpx data")
         dst = os.path.join(tmp_dir, "dst.txt")

@@ -19,9 +19,11 @@ pre-commit:
 test:
 	uv run pytest tests
 
+docstr-coverage:
+	uv run docstr-coverage ./**/*.py --fail-under 20 --verbose=2 --skip-file-doc --skip-init
+
 run: install
 	uv run run.py
 
 run-release: install-release
 	uv run run.py
-

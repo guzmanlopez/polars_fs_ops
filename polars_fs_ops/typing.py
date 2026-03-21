@@ -1,3 +1,5 @@
+"""Type aliases for polars_fs_ops."""
+
 from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
