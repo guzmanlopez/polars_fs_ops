@@ -7,6 +7,17 @@ use cpx::core::copy::copy;
 use polars::prelude::arity::broadcast_binary_elementwise;
 use polars::prelude::*;
 use pyo3_polars::derive::polars_expr;
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct AddProgressBarKwargs {
+    progress_bar: bool,
+}
+
+#[derive(Deserialize)]
+struct AddParallelKwargs {
+    parallel: i32,
+}
 
 //  Using std::fs for file operations
 #[polars_expr(output_type=Boolean)]
@@ -55,31 +66,46 @@ fn rm_file(inputs: &[Series]) -> PolarsResult<Series> {
     Ok(out.into_series())
 }
 
-#[polars_expr(output_type=String)]
+fn ls_dir_output(_: &[Field]) -> PolarsResult<Field> {
+    Ok(Field::new(
+        "ls_dir".into(),
+        DataType::List(Box::new(DataType::String)),
+    ))
+}
+
+#[polars_expr(output_type_func=ls_dir_output)]
 fn ls_dir(inputs: &[Series]) -> PolarsResult<Series> {
-    let from: &StringChunked = inputs[0].str()?;
-    let out: StringChunked = from.apply_nonnull_values_generic(DataType::String, |value: &str| {
-        std::fs::read_dir(value)
-            .map(|entries| {
-                entries
-                    .filter_map(Result::ok)
-                    .map(|entry| entry.path().to_string_lossy().to_string())
-                    .collect::<Vec<String>>()
-                    .join(", ")
-            })
-            .unwrap_or_default()
-    });
+    let ca: &StringChunked = inputs[0].str()?;
+    let mut builder = ListStringChunkedBuilder::new("ls_dir".into(), ca.len(), ca.len() * 5);
+
+    for opt_val in ca.into_iter() {
+        match opt_val {
+            Some(dir_path) => match std::fs::read_dir(dir_path) {
+                Ok(entries) => {
+                    let paths: Vec<String> = entries
+                        .filter_map(Result::ok)
+                        .map(|entry| entry.path().to_string_lossy().to_string())
+                        .collect();
+                    builder.append_values_iter(paths.iter().map(|s| s.as_str()));
+                },
+                Err(_) => builder.append_null(),
+            },
+            None => builder.append_null(),
+        }
+    }
+
+    let out = builder.finish();
     Ok(out.into_series())
 }
 
 // Using uutils: Cross-platform Rust rewrite of the GNU coreutils
 #[polars_expr(output_type=Boolean)]
-fn uucp_file(inputs: &[Series]) -> PolarsResult<Series> {
+fn uucp_file(inputs: &[Series], kwargs: AddProgressBarKwargs) -> PolarsResult<Series> {
     let from: &StringChunked = inputs[0].str()?;
     let to_dir: &StringChunked = inputs[1].str()?;
-    let progress_bar: &BooleanChunked = inputs[2].bool()?;
+    let progress_bar: bool = kwargs.progress_bar;
     let options = uu_cp::Options {
-        progress_bar: progress_bar.get(0).unwrap_or(false),
+        progress_bar: progress_bar,
         ..Default::default()
     };
 
@@ -96,12 +122,12 @@ fn uucp_file(inputs: &[Series]) -> PolarsResult<Series> {
 }
 
 #[polars_expr(output_type=Boolean)]
-fn uumv_file(inputs: &[Series]) -> PolarsResult<Series> {
+fn uumv_file(inputs: &[Series], kwargs: AddProgressBarKwargs) -> PolarsResult<Series> {
     let from: &StringChunked = inputs[0].str()?;
     let to: &StringChunked = inputs[1].str()?;
-    let progress_bar: &BooleanChunked = inputs[2].bool()?;
+    let progress_bar: bool = kwargs.progress_bar;
     let options = uu_mv::Options {
-        progress_bar: progress_bar.get(0).unwrap_or(false),
+        progress_bar: progress_bar,
         ..Default::default()
     };
 
@@ -119,12 +145,12 @@ fn uumv_file(inputs: &[Series]) -> PolarsResult<Series> {
 
 // Using cpx: A Rust library for high-performance file copying with advanced features
 #[polars_expr(output_type=Boolean)]
-fn cpx_file(inputs: &[Series]) -> PolarsResult<Series> {
+fn cpx_file(inputs: &[Series], kwargs: AddParallelKwargs) -> PolarsResult<Series> {
     let from: &StringChunked = inputs[0].str()?;
     let to: &StringChunked = inputs[1].str()?;
-    let parallel: &Int32Chunked = inputs[2].i32()?;
+    let parallel: i32 = kwargs.parallel;
     let mut options = CopyOptions::none();
-    options.parallel = parallel.get(0).unwrap_or(0).max(0) as usize;
+    options.parallel = parallel.max(0) as usize;
 
     let out: BooleanChunked =
         broadcast_binary_elementwise(from, to, |from: Option<&str>, to: Option<&str>| {

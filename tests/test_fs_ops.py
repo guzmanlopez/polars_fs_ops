@@ -156,21 +156,30 @@ class TestLsDir:
         _create_file(os.path.join(tmp_dir, "b.txt"))
         df = pl.DataFrame({"dir": [tmp_dir]})
         result = df.select(ls_dir("dir"))
-        entries = result["dir"][0]
-        assert "a.txt" in entries
-        assert "b.txt" in entries
+        entries = result["dir"][0].to_list()
+        entry_names = [os.path.basename(e) for e in entries]
+        assert "a.txt" in entry_names
+        assert "b.txt" in entry_names
 
     def test_list_empty_directory(self, tmp_dir: str):
         empty = os.path.join(tmp_dir, "empty")
         os.makedirs(empty)
         df = pl.DataFrame({"dir": [empty]})
         result = df.select(ls_dir("dir"))
-        assert result["dir"][0] == ""
+        assert result["dir"][0].to_list() == []
 
     def test_list_nonexistent_directory(self):
         df = pl.DataFrame({"dir": ["/tmp/__no_such_dir_xyz__"]})
         result = df.select(ls_dir("dir"))
-        assert result["dir"][0] == ""
+        assert result["dir"][0] is None
+
+    def test_explode(self, tmp_dir: str):
+        _create_file(os.path.join(tmp_dir, "x.txt"))
+        _create_file(os.path.join(tmp_dir, "y.txt"))
+        df = pl.DataFrame({"dir": [tmp_dir]})
+        result = df.select(ls_dir("dir")).explode("dir")
+        assert result.shape[0] == 2
+        assert result["dir"].dtype == pl.String
 
 
 # ── uucp_file ────────────────────────────────────────────────────────────────
@@ -182,7 +191,7 @@ class TestUucpFile:
         dst_dir = os.path.join(tmp_dir, "dest")
         os.makedirs(dst_dir)
         df = pl.DataFrame({"src": [src], "dst": [dst_dir]})
-        result = df.select(uucp_file("src", "dst", pl.lit(False)))
+        result = df.select(uucp_file("src", "dst", False))
         assert result["src"].to_list() == [True]
         assert os.path.exists(os.path.join(dst_dir, "src.txt"))
 
@@ -190,7 +199,7 @@ class TestUucpFile:
         dst_dir = os.path.join(tmp_dir, "dest")
         os.makedirs(dst_dir)
         df = pl.DataFrame({"src": ["/tmp/__no_such_file__"], "dst": [dst_dir]})
-        result = df.select(uucp_file("src", "dst", pl.lit(False)))
+        result = df.select(uucp_file("src", "dst", False))
         assert result["src"].to_list() == [False]
 
 
@@ -202,7 +211,7 @@ class TestUumvFile:
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "uumv data")
         dst = os.path.join(tmp_dir, "dst.txt")
         df = pl.DataFrame({"src": [src], "dst": [dst]})
-        result = df.select(uumv_file("src", "dst", pl.lit(False)))
+        result = df.select(uumv_file("src", "dst", False))
         assert result["src"].to_list() == [True]
         assert not os.path.exists(src)
         assert os.path.exists(dst)
@@ -210,7 +219,7 @@ class TestUumvFile:
     def test_move_nonexistent_source(self, tmp_dir: str):
         dst = os.path.join(tmp_dir, "dst.txt")
         df = pl.DataFrame({"src": ["/tmp/__no_such_file__"], "dst": [dst]})
-        result = df.select(uumv_file("src", "dst", pl.lit(False)))
+        result = df.select(uumv_file("src", "dst", False))
         assert result["src"].to_list() == [False]
 
 
@@ -222,7 +231,7 @@ class TestCpxFile:
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "cpx data")
         dst = os.path.join(tmp_dir, "dst.txt")
         df = pl.DataFrame({"src": [src], "dst": [dst]})
-        result = df.select(cpx_file("src", "dst", pl.lit(0)))
+        result = df.select(cpx_file("src", "dst", 0))
         assert result["src"].to_list() == [True]
         assert os.path.exists(dst)
         with open(dst) as f:
@@ -231,5 +240,5 @@ class TestCpxFile:
     def test_copy_nonexistent_source(self, tmp_dir: str):
         dst = os.path.join(tmp_dir, "dst.txt")
         df = pl.DataFrame({"src": ["/tmp/__no_such_file__"], "dst": [dst]})
-        result = df.select(cpx_file("src", "dst", pl.lit(0)))
+        result = df.select(cpx_file("src", "dst", 0))
         assert result["src"].to_list() == [False]

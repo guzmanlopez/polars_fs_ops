@@ -59,34 +59,31 @@ def ls_dir(dir_path: IntoExprColumn) -> pl.Expr:
     )
 
 
-def uucp_file(
-    from_path: IntoExprColumn, to_path: IntoExprColumn, progress_bar: IntoExprColumn
-) -> pl.Expr:
+def uucp_file(from_path: IntoExprColumn, to_path: IntoExprColumn, progress_bar: bool) -> pl.Expr:
     return register_plugin_function(
-        args=[from_path, to_path, progress_bar],
+        args=[from_path, to_path],
         plugin_path=LIB,
         function_name="uucp_file",
         is_elementwise=True,
+        kwargs={"progress_bar": progress_bar},
     )
 
 
-def uumv_file(
-    from_path: IntoExprColumn, to_dir: IntoExprColumn, progress_bar: IntoExprColumn
-) -> pl.Expr:
+def uumv_file(from_path: IntoExprColumn, to_dir: IntoExprColumn, progress_bar: bool) -> pl.Expr:
     return register_plugin_function(
-        args=[from_path, to_dir, progress_bar],
+        args=[from_path, to_dir],
         plugin_path=LIB,
         function_name="uumv_file",
         is_elementwise=True,
+        kwargs={"progress_bar": progress_bar},
     )
 
 
-def cpx_file(
-    from_path: IntoExprColumn, to_path: IntoExprColumn, parallel: IntoExprColumn
-) -> pl.Expr:
+def cpx_file(from_path: IntoExprColumn, to_path: IntoExprColumn, parallel: int) -> pl.Expr:
     return register_plugin_function(
-        args=[from_path, to_path, parallel],
+        args=[from_path, to_path],
         plugin_path=LIB,
         function_name="cpx_file",
         is_elementwise=True,
+        kwargs={"parallel": parallel},
     )
