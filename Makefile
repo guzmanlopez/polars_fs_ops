@@ -1,0 +1,27 @@
+SHELL=/bin/bash
+
+activate:
+	source .venv/bin/activate
+
+venv:
+	uv venv --python 3.12
+
+install: activate
+	uv run maturin develop
+
+install-release: activate
+	uv run maturin develop --release
+
+pre-commit:
+	cargo +nightly fmt --all && cargo clippy --all-features
+	uv run pre-commit run --all-files
+
+test:
+	uv run pytest tests
+
+run: install
+	uv run run.py
+
+run-release: install-release
+	uv run run.py
+
