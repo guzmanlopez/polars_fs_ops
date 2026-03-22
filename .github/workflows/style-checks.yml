@@ -10,6 +10,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7.6.0
+        with:
+          enable-cache: true
 
       - name: Set up Python
         run: uv python install
@@ -27,11 +29,15 @@ jobs:
         run: uv run docstr-coverage ./**/*.py --fail-under 20 --verbose=2 --skip-file-doc --skip-init
       
       - name: Set up Rust
-        run: rustup show
-      - uses: mozilla-actions/sccache-action@v0.0.6
-        
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
       - name: Check Rust formatting with rustfmt
-        run: cargo +nightly fmt --all -- --check
-      
+        run: cargo fmt --all -- --check
+
       - name: Check Rust code with Clippy
-        run: cargo +nightly clippy --all-features -- -D warnings
+        run: cargo clippy --all-features -- -D warnings

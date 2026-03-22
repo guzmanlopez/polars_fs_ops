@@ -27,3 +27,18 @@ run: install
 
 run-release: install-release
 	uv run run.py
+
+run-local-gh-action-style-checks:
+	act --use-new-action-cache -j style-checks
+
+run-local-gh-action-tests:
+	echo '{"workflow_run":{"conclusion":"success","name":"Style checks"}}' > /tmp/workflow_run_event.json
+	act workflow_run -j test -e /tmp/workflow_run_event.json --use-new-action-cache
+
+run-local-gh-action-complexity-checks:
+	echo '{"workflow_run":{"conclusion":"success","name":"Run Tests"}}' > /tmp/workflow_run_event.json
+	act workflow_run -j complexity-checks -e /tmp/workflow_run_event.json --use-new-action-cache
+
+run-local-gh-action-ci:
+	echo '{"workflow_run":{"conclusion":"success","name":"Complexity checks"}}' > /tmp/workflow_run_event.json
+	act workflow_run -j ci -e /tmp/workflow_run_event.json --use-new-action-cache
