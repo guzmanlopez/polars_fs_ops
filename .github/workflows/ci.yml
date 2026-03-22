@@ -9,6 +9,11 @@ concurrency:
 jobs:
   python-checks:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [x86_64]
+        python-version: ["3.11", "3.12", "3.13"]
+
     steps:
        - name: Checkout repo
          uses: actions/checkout@v5
@@ -16,30 +21,31 @@ jobs:
        - name: Install uv
          uses: astral-sh/setup-uv@v7.6.0
          with:
+          python-version: ${{ matrix.python-version }}
           enable-cache: true
-
-       - name: Set up Python
+         
+       - name: Set up Python ${{ matrix.python-version }}
          run: uv python install
 
-       - name: Install Python project
+       - name: Install Python ${{ matrix.python-version }} project
          run: uv sync --locked --all-extras --dev
 
-       - name: Check Python linting and formatting with Ruff
+       - name: Check Python ${{ matrix.python-version }} linting and formatting with Ruff
          run: |
            uv run ruff check
            uv run ruff format --check
 
-       - name: Check Python docstring coverage
+       - name: Check Python ${{ matrix.python-version }} docstring coverage
          run: uv run docstr-coverage ./**/*.py --fail-under 20 --verbose=2 --skip-file-doc --skip-init
 
-       - name: Check code complexity with Complexipy
+       - name: Check code complexity with Complexipy for Python ${{ matrix.python-version }}
          uses: guzmanlopez/complexipy-action@feature/update-to-complexipy-v5
          with:
            paths: .
            max_complexity_allowed: 20
            output_json: true
         
-       - name: Run tests with pytest
+       - name: Run Python ${{ matrix.python-version }} tests
          run: uv run pytest
 
   rust-checks:
