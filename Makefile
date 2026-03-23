@@ -33,6 +33,3 @@ run-local-gh-action-python-checks:
 
 run-local-gh-action-rust-checks:
 	act workflow_run -j rust-checks --use-new-action-cache
-
-run-local-gh-action-ci:
-	act workflow_run -j release --use-new-action-cache
