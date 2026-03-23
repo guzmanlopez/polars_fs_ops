@@ -7,11 +7,8 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*'
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -26,15 +23,7 @@ jobs:
           - runner: ubuntu-22.04
             target: x86_64
           - runner: ubuntu-22.04
-            target: x86
-          - runner: ubuntu-22.04
             target: aarch64
-          - runner: ubuntu-22.04
-            target: armv7
-          - runner: ubuntu-22.04
-            target: s390x
-          - runner: ubuntu-22.04
-            target: ppc64le
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -190,7 +179,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
+    if: ${{ always() && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') }}
     needs: [linux, musllinux, windows, macos, sdist]
     permissions:
       # Use to sign the release artifacts
@@ -205,11 +194,10 @@ jobs:
         uses: actions/attest-build-provenance@v3
         with:
           subject-path: 'wheels-*/*'
-      - name: Install uv
+      - name: Create GitHub Release
         if: ${{ startsWith(github.ref, 'refs/tags/') }}
-        uses: astral-sh/setup-uv@v7
-      # - name: Publish to PyPI
-      #   if: ${{ startsWith(github.ref, 'refs/tags/') }}
-      #   run: uv publish 'wheels-*/*'
-      #   env:
-      #     UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: wheels-*/*
+          generate_release_notes: true
+
