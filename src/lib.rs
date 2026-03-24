@@ -1,4 +1,6 @@
-mod expressions;
+mod fs_checks;
+mod fs_ops;
+mod utils;
 use pyo3::prelude::*;
 use pyo3_polars::PolarsAllocator;
 

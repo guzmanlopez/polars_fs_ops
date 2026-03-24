@@ -13,6 +13,7 @@ pyo3-polars = { version = "0.25.0", features = ["derive", "dtype-struct", "dtype
 serde = { version = "1", features = ["derive"] }
 polars = { version = "0.52.0", default-features = false }
 polars-arrow = { version = "0.52.0", default-features = false }
+[target.'cfg(target_os = "linux")'.dependencies]
 cpx = "0.1.4"
 uu_cp = "0.7.0"
 uu_mv = "0.7.0"

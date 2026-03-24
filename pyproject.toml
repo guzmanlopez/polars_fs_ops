@@ -57,3 +57,9 @@ output-json = false
 [[tool.mypy.overrides]]
 module = "polars.utils.udfs"
 ignore_missing_imports = true
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.2.0",
+    "pip>=26.0.1",
+]
