@@ -11,12 +11,16 @@ pub fn is_valid_source(path_str: Option<&str>) -> bool {
 }
 
 pub fn is_valid_destination(from_path: Option<&str>, to_path: Option<&str>) -> bool {
-    let valid_dest = if is_valid_directory_path(to_path) {
-        true
-    } else {
-        has_valid_parent_dir(to_path) && has_same_extension(from_path, to_path)
-    };
-    valid_dest
+    match (from_path, to_path) {
+        (Some(from), Some(to)) => {
+            if is_valid_directory_path(Some(to)) {
+                true
+            } else {
+                has_valid_parent_dir(Some(to)) && has_same_extension(Some(from), Some(to))
+            }
+        },
+        _ => false,
+    }
 }
 
 pub fn is_valid_directory_path(path_str: Option<&str>) -> bool {

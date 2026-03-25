@@ -140,11 +140,10 @@ struct UuCpKwargs {
 fn uucp_file(inputs: &[Series], kwargs: UuCpKwargs) -> PolarsResult<Series> {
     let from: &StringChunked = inputs[0].str()?;
     let to: &StringChunked = inputs[1].str()?;
-    let progress_bar: bool = kwargs.progress_bar;
     let dry_run: bool = kwargs.dry_run;
 
     let options = uu_cp::Options {
-        progress_bar: progress_bar,
+        progress_bar: kwargs.progress_bar,
         ..Default::default()
     };
 
@@ -177,11 +176,10 @@ struct UuMvKwargs {
 fn uumv_file(inputs: &[Series], kwargs: UuMvKwargs) -> PolarsResult<Series> {
     let from: &StringChunked = inputs[0].str()?;
     let to: &StringChunked = inputs[1].str()?;
-    let progress_bar: bool = kwargs.progress_bar;
     let dry_run: bool = kwargs.dry_run;
 
     let options = uu_mv::Options {
-        progress_bar: progress_bar,
+        progress_bar: kwargs.progress_bar,
         ..Default::default()
     };
 

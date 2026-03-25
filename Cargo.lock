@@ -1977,7 +1977,7 @@ dependencies = [
 
 [[package]]
 name = "polars-fs-ops"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cpx",
  "polars",
