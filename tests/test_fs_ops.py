@@ -102,6 +102,23 @@ class TestCheckValidParentDir:
 class TestCpFile:
     """Tests for the cp_file expression."""
 
+    def test_copy_file_to_file(self, tmp_dir: str):
+        src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
+        dst = os.path.join(tmp_dir, "dst.txt")
+        df = pl.DataFrame({"src": [src], "dst": [dst]})
+        result = df.select(cp_file("src", "dst"))
+        assert result["src"].to_list() == [True]
+        assert os.path.exists(dst)
+
+    def test_copy_file_to_dir(self, tmp_dir: str):
+        src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
+        dst_dir = os.path.join(tmp_dir, "dest_dir")
+        os.makedirs(dst_dir)
+        df = pl.DataFrame({"src": [src], "dst": [dst_dir]})
+        # cp_file uses check_file_to_file, which returns False for file-to-dir
+        result = df.select(cp_file("src", "dst"))
+        assert result["src"].to_list() == [False]
+
     def test_copy_success(self, tmp_dir: str):
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
         dst = os.path.join(tmp_dir, "dst.txt")
@@ -161,6 +178,26 @@ class TestCpFile:
 
 class TestMvFile:
     """Tests for the mv_file expression."""
+
+    def test_move_file_to_file(self, tmp_dir: str):
+        src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
+        dst = os.path.join(tmp_dir, "dst.txt")
+        df = pl.DataFrame({"src": [src], "dst": [dst]})
+        result = df.select(mv_file("src", "dst"))
+        assert result["src"].to_list() == [True]
+        assert os.path.exists(dst)
+        assert not os.path.exists(src)
+
+    def test_move_file_to_dir(self, tmp_dir: str):
+        src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
+        dst_dir = os.path.join(tmp_dir, "dest_dir")
+        os.makedirs(dst_dir)
+        df = pl.DataFrame({"src": [src], "dst": [dst_dir]})
+        # mv_file uses check_valid_mv
+        result = df.select(mv_file("src", "dst"))
+        assert result["src"].to_list() == [
+            False
+        ]  # NOTE: std::fs::rename fails when dest is an existing directory on unix
 
     def test_move_success(self, tmp_dir: str):
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
@@ -280,6 +317,24 @@ class TestLsDir:
 class TestUucpFile:
     """Tests for the uucp_file expression."""
 
+    def test_copy_file_to_file(self, tmp_dir: str):
+        src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
+        dst = os.path.join(tmp_dir, "dst.txt")
+        df = pl.DataFrame({"src": [src], "dst": [dst]})
+        result = df.select(uucp_file("src", "dst", False, False))
+        assert result["src"].to_list() == [True]
+        assert os.path.exists(dst)
+
+    def test_copy_file_to_dir(self, tmp_dir: str):
+        src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
+        dst_dir = os.path.join(tmp_dir, "dest_dir")
+        os.makedirs(dst_dir)
+        df = pl.DataFrame({"src": [src], "dst": [dst_dir]})
+        # uucp_file supports check_file_to_file || check_file_to_dir
+        result = df.select(uucp_file("src", "dst", False, False))
+        assert result["src"].to_list() == [True]
+        assert os.path.exists(os.path.join(dst_dir, "src.txt"))
+
     def test_copy_success(self, tmp_dir: str):
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "uucp data")
         dst_dir = os.path.join(tmp_dir, "dest")
@@ -303,6 +358,24 @@ class TestUucpFile:
 class TestUumvFile:
     """Tests for the uumv_file expression."""
 
+    def test_move_file_to_file(self, tmp_dir: str):
+        src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
+        dst = os.path.join(tmp_dir, "dst.txt")
+        df = pl.DataFrame({"src": [src], "dst": [dst]})
+        result = df.select(uumv_file("src", "dst", False, False))
+        assert result["src"].to_list() == [True]
+        assert os.path.exists(dst)
+        assert not os.path.exists(src)
+
+    def test_move_file_to_dir(self, tmp_dir: str):
+        src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
+        dst_dir = os.path.join(tmp_dir, "dest_dir")
+        os.makedirs(dst_dir)
+        df = pl.DataFrame({"src": [src], "dst": [dst_dir]})
+        # uumv_file uses check_valid_mv, which returns False for file-to-dir
+        result = df.select(uumv_file("src", "dst", False, False))
+        assert result["src"].to_list() == [False]
+
     def test_move_success(self, tmp_dir: str):
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "uumv data")
         dst = os.path.join(tmp_dir, "dst.txt")
@@ -324,6 +397,23 @@ class TestUumvFile:
 
 class TestCpxFile:
     """Tests for the cpx_file expression."""
+
+    def test_copy_file_to_file(self, tmp_dir: str):
+        src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
+        dst = os.path.join(tmp_dir, "dst.txt")
+        df = pl.DataFrame({"src": [src], "dst": [dst]})
+        result = df.select(cpx_file("src", "dst", 0))
+        assert result["src"].to_list() == [True]
+        assert os.path.exists(dst)
+
+    def test_copy_file_to_dir(self, tmp_dir: str):
+        src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
+        dst_dir = os.path.join(tmp_dir, "dest_dir")
+        os.makedirs(dst_dir)
+        df = pl.DataFrame({"src": [src], "dst": [dst_dir]})
+        # cpx_file uses check_file_to_file, which returns False for file-to-dir
+        result = df.select(cpx_file("src", "dst", 0))
+        assert result["src"].to_list() == [False]
 
     def test_copy_success(self, tmp_dir: str):
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "cpx data")

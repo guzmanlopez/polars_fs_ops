@@ -104,7 +104,10 @@ def ls_dir(dir_path: IntoExprColumn) -> pl.Expr:
 
 
 def uucp_file(
-    from_path: IntoExprColumn, to_path: IntoExprColumn, progress_bar: bool, dry_run: bool
+    from_path: IntoExprColumn,
+    to_path: IntoExprColumn,
+    progress_bar: bool = True,
+    dry_run: bool = False,
 ) -> pl.Expr:
     """Copy files using uutils coreutils (cross-platform GNU cp rewrite).
 
@@ -127,7 +130,10 @@ def uucp_file(
 
 
 def uumv_file(
-    from_path: IntoExprColumn, to_dir: IntoExprColumn, progress_bar: bool, dry_run: bool
+    from_path: IntoExprColumn,
+    to_dir: IntoExprColumn,
+    progress_bar: bool = True,
+    dry_run: bool = False,
 ) -> pl.Expr:
     """Move files using uutils coreutils (cross-platform GNU mv rewrite).
 
@@ -150,7 +156,7 @@ def uumv_file(
 
 
 def cpx_file(
-    from_path: IntoExprColumn, to_path: IntoExprColumn, parallel: int, dry_run: bool = False
+    from_path: IntoExprColumn, to_path: IntoExprColumn, parallel: int = 0, dry_run: bool = False
 ) -> pl.Expr:
     """Copy files using cpx (high-performance Rust file copying library).
 

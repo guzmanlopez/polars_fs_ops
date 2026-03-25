@@ -1,33 +1,55 @@
 use std::path::Path;
 
-pub fn is_valid_source(path_str: Option<&str>) -> bool {
-    match path_str {
-        Some(s) if !s.is_empty() => {
-            let path = Path::new(s);
-            path.is_file() && path.exists()
+pub fn check_file_to_file(from_path: Option<&str>, to_path: Option<&str>) -> bool {
+    match (from_path, to_path) {
+        (Some(from), Some(to)) => {
+            let from_is_file = Path::new(from).is_file();
+            from_is_file && has_valid_parent_dir(Some(to)) && has_same_ext(Some(from), Some(to))
         },
         _ => false,
     }
 }
 
-pub fn is_valid_destination(from_path: Option<&str>, to_path: Option<&str>) -> bool {
+pub fn check_valid_mv(from_path: Option<&str>, to_path: Option<&str>) -> bool {
     match (from_path, to_path) {
         (Some(from), Some(to)) => {
-            if is_valid_directory_path(Some(to)) {
+            if check_file_to_file(Some(from), Some(to)) {
                 true
             } else {
-                has_valid_parent_dir(Some(to)) && has_same_extension(Some(from), Some(to))
+                let from_is_dir = Path::new(from).is_dir();
+                let to_is_not_file = !Path::new(to).is_file();
+                from_is_dir && to_is_not_file && is_valid_dir_path_to_create(Some(to))
             }
         },
         _ => false,
     }
 }
 
-pub fn is_valid_directory_path(path_str: Option<&str>) -> bool {
+pub fn check_file_to_dir(from_path: Option<&str>, to_path: Option<&str>) -> bool {
+    match (from_path, to_path) {
+        (Some(from), Some(to)) => {
+            let from_is_file = Path::new(from).is_file();
+            let to_is_dir = Path::new(to).is_dir();
+            from_is_file && to_is_dir
+        },
+        _ => false,
+    }
+}
+
+pub fn is_valid_dir_path_to_create(path_str: Option<&str>) -> bool {
     match path_str {
         Some(s) if !s.is_empty() => {
             let path = Path::new(s);
-            path.exists() && path.is_dir()
+
+            if path.exists() {
+                return path.is_dir();
+            }
+
+            match path.parent() {
+                Some(parent) if parent.as_os_str().is_empty() => Path::new(".").is_dir(),
+                Some(parent) => parent.is_dir(),
+                None => false,
+            }
         },
         _ => false,
     }
@@ -38,7 +60,7 @@ pub fn has_valid_parent_dir(path_str: Option<&str>) -> bool {
         Some(s) if !s.is_empty() => {
             let path = Path::new(s);
             if let Some(parent) = path.parent() {
-                is_valid_directory_path(parent.to_str())
+                Path::new(parent.to_str().unwrap_or("")).is_dir()
             } else {
                 false
             }
@@ -47,7 +69,7 @@ pub fn has_valid_parent_dir(path_str: Option<&str>) -> bool {
     }
 }
 
-pub fn has_same_extension(from_path: Option<&str>, to_path: Option<&str>) -> bool {
+pub fn has_same_ext(from_path: Option<&str>, to_path: Option<&str>) -> bool {
     match (from_path, to_path) {
         (Some(from), Some(to)) if !to.is_empty() => {
             let from_path = Path::new(from);

@@ -11,7 +11,7 @@ use polars::prelude::*;
 use pyo3_polars::derive::polars_expr;
 use serde::Deserialize;
 
-use crate::utils::{is_valid_destination, is_valid_source};
+use crate::utils::{check_file_to_dir, check_file_to_file, check_valid_mv};
 
 //  Using std::fs for operations
 #[derive(Deserialize)]
@@ -24,18 +24,15 @@ fn cp_file(inputs: &[Series], kwargs: CpFileKwargs) -> PolarsResult<Series> {
     let from: &StringChunked = inputs[0].str()?;
     let to: &StringChunked = inputs[1].str()?;
     let dry_run: bool = kwargs.dry_run;
-
     let out: BooleanChunked =
         broadcast_binary_elementwise(from, to, |from: Option<&str>, to: Option<&str>| {
             match (from, to) {
                 (Some(from), Some(to)) => {
-                    let valid_source = is_valid_source(Some(from));
-                    let valid_dest = is_valid_destination(Some(from), Some(to));
-
-                    if !dry_run && (valid_source && valid_dest) {
+                    let valid = check_file_to_file(Some(from), Some(to));
+                    if !dry_run && valid {
                         std::fs::copy(from, to).is_ok()
                     } else {
-                        valid_source && valid_dest
+                        valid
                     }
                 },
                 _ => false,
@@ -54,18 +51,15 @@ fn mv_file(inputs: &[Series], kwargs: MvFileKwargs) -> PolarsResult<Series> {
     let from: &StringChunked = inputs[0].str()?;
     let to: &StringChunked = inputs[1].str()?;
     let dry_run: bool = kwargs.dry_run;
-
     let out: BooleanChunked =
         broadcast_binary_elementwise(from, to, |from: Option<&str>, to: Option<&str>| {
             match (from, to) {
                 (Some(from), Some(to)) => {
-                    let valid_source = is_valid_source(Some(from));
-                    let valid_dest = is_valid_destination(Some(from), Some(to));
-
-                    if !dry_run && (valid_source && valid_dest) {
+                    let valid = check_valid_mv(Some(from), Some(to));
+                    if !dry_run && valid {
                         std::fs::rename(from, to).is_ok()
                     } else {
-                        valid_source && valid_dest
+                        valid
                     }
                 },
                 _ => false,
@@ -83,11 +77,9 @@ struct RmFileKwargs {
 fn rm_file(inputs: &[Series], kwargs: RmFileKwargs) -> PolarsResult<Series> {
     let from: &StringChunked = inputs[0].str()?;
     let dry_run: bool = kwargs.dry_run;
-
     let out: BooleanChunked =
         from.apply_nonnull_values_generic(DataType::Boolean, |value: &str| {
-            let valid_source = is_valid_source(Some(value));
-
+            let valid_source = Path::new(value).is_file();
             if !dry_run && valid_source {
                 std::fs::remove_file(value).is_ok()
             } else {
@@ -108,7 +100,6 @@ fn ls_dir_output(_: &[Field]) -> PolarsResult<Field> {
 fn ls_dir(inputs: &[Series]) -> PolarsResult<Series> {
     let ca: &StringChunked = inputs[0].str()?;
     let mut builder = ListStringChunkedBuilder::new("ls_dir".into(), ca.len(), ca.len() * 5);
-
     for opt_val in ca.into_iter() {
         match opt_val {
             Some(dir_path) => match std::fs::read_dir(dir_path) {
@@ -141,23 +132,20 @@ fn uucp_file(inputs: &[Series], kwargs: UuCpKwargs) -> PolarsResult<Series> {
     let from: &StringChunked = inputs[0].str()?;
     let to: &StringChunked = inputs[1].str()?;
     let dry_run: bool = kwargs.dry_run;
-
     let options = uu_cp::Options {
         progress_bar: kwargs.progress_bar,
         ..Default::default()
     };
-
     let out: BooleanChunked =
         broadcast_binary_elementwise(from, to, |from: Option<&str>, to: Option<&str>| {
             match (from, to) {
                 (Some(from), Some(to)) => {
-                    let valid_source = is_valid_source(Some(from));
-                    let valid_dest = is_valid_destination(Some(from), Some(to));
-
-                    if !dry_run && (valid_source && valid_dest) {
+                    let valid = check_file_to_file(Some(from), Some(to))
+                        || check_file_to_dir(Some(from), Some(to));
+                    if !dry_run && valid {
                         uu_cp::copy(&[PathBuf::from(from)], Path::new(to), &options).is_ok()
                     } else {
-                        valid_source && valid_dest
+                        valid
                     }
                 },
                 _ => false,
@@ -177,23 +165,19 @@ fn uumv_file(inputs: &[Series], kwargs: UuMvKwargs) -> PolarsResult<Series> {
     let from: &StringChunked = inputs[0].str()?;
     let to: &StringChunked = inputs[1].str()?;
     let dry_run: bool = kwargs.dry_run;
-
     let options = uu_mv::Options {
         progress_bar: kwargs.progress_bar,
         ..Default::default()
     };
-
     let out: BooleanChunked =
         broadcast_binary_elementwise(from, to, |from: Option<&str>, to: Option<&str>| {
             match (from, to) {
                 (Some(from), Some(to)) => {
-                    let valid_source = is_valid_source(Some(from));
-                    let valid_dest = is_valid_destination(Some(from), Some(to));
-
-                    if !dry_run && (valid_source && valid_dest) {
+                    let valid = check_valid_mv(Some(from), Some(to));
+                    if !dry_run && valid {
                         uu_mv::mv(&[OsString::from(from), OsString::from(to)], &options).is_ok()
                     } else {
-                        valid_source && valid_dest
+                        valid
                     }
                 },
                 _ => false,
@@ -219,18 +203,15 @@ fn cpx_file(inputs: &[Series], kwargs: CpxKwargs) -> PolarsResult<Series> {
     let dry_run: bool = kwargs.dry_run;
     let mut options = CopyOptions::none();
     options.parallel = parallel.max(0) as usize;
-
     let out: BooleanChunked =
         broadcast_binary_elementwise(from, to, |from: Option<&str>, to: Option<&str>| {
             match (from, to) {
                 (Some(from), Some(to)) => {
-                    let valid_source = is_valid_source(Some(from));
-                    let valid_dest = is_valid_destination(Some(from), Some(to));
-
-                    if !dry_run && (valid_source && valid_dest) {
+                    let valid = check_file_to_file(Some(from), Some(to));
+                    if !dry_run && valid {
                         copy(Path::new(from), Path::new(to), &options).is_ok()
                     } else {
-                        valid_source && valid_dest
+                        valid
                     }
                 },
                 _ => false,

@@ -1,16 +1,16 @@
 #![allow(clippy::unused_unit)]
+use std::path::Path;
 
 use polars::prelude::*;
 use pyo3_polars::derive::polars_expr;
 
-use crate::utils::{has_valid_parent_dir, is_valid_source};
+use crate::utils::has_valid_parent_dir;
 
 #[polars_expr(output_type=Boolean)]
 fn file_exists(inputs: &[Series]) -> PolarsResult<Series> {
     let fp: &StringChunked = inputs[0].str()?;
-    let out: BooleanChunked = fp.apply_nonnull_values_generic(DataType::Boolean, |value: &str| {
-        is_valid_source(Some(value))
-    });
+    let out: BooleanChunked = fp
+        .apply_nonnull_values_generic(DataType::Boolean, |value: &str| Path::new(value).is_file());
 
     Ok(out.into_series())
 }

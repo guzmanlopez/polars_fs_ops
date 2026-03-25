@@ -52,64 +52,153 @@ dependencies = [
 
 ## Usage Example
 
-Imagine you have a dataset of downloaded image files, and you want to back them up, check if they exist, move them to an archive folder, and finally list the contents of that archive folder — all natively within a Polars lazy/eager computation graph! 
+Imagine you have a dataset of downloaded files, and you want to back them up, copy them to a new folder, and clean up the originals — all natively within a Polars lazy/eager computation graph! 
+
+### 1. Setup & Create Test Files
+
+First, let's create a temporary directory populated with some test files.
 
 ```python
+import tempfile
+from pathlib import Path
+
 import polars as pl
 import polars_fs_ops as plfs
 
-# 1. Dataframe of file operations for an image dataset
-df = pl.DataFrame(
-    {
-        "file_path": [
-            "train/img_01.jpg",
-            "train/img_02.jpg",
-            "test/img_03.jpg",
-            "val/img_04.jpg",
-            "missing/img_05.jpg",
-        ],
-    }
-)
+pl.Config.set_fmt_str_lengths(150)
 
-# 2. Perform filesystem operations as expressions!
-result = (
-    df
-    # Check if the source files actually exist
-    .with_columns(file_exists=plfs.file_exists(pl.col("file_path")))
-    # Only if it exists, copy it to the backup location
-    .with_columns(
-        copy_status=pl.when(pl.col("file_exists"))
-        .then(
-            plfs.uucp_file(
-                from_path=pl.col("file_path"),
-                to_path=pl.lit("backups/") + pl.col("file_path"),
-                progress_bar=True,
-            )
-        )
-        .otherwise(pl.lit(None))
-    )
-    # Move the backed-up files to an archive directory
-    .with_columns(
-        move_status=pl.when(pl.col("copy_status"))
-        .then(
-            plfs.uumv_file(
-                from_path=pl.lit("backups/") + pl.col("file_path"),
-                to_dir=pl.col("archive_dir"),
-                progress_bar=True,
-            )
-        )
-        .otherwise(pl.lit(None))
-    )
-)
+# Create a temporal folder and 20 files for testing
+temp_dir = tempfile.mkdtemp()
+Path(temp_dir).mkdir(parents=True, exist_ok=True)
 
-print(result)
+for i in range(20):
+    with open(Path(temp_dir) / f"{i}.txt", "w") as f:
+        f.write(f"This is test file {i}\n")
+```
 
-# 3. List the contents of the archive directories
-dir_contents = (
-    pl.DataFrame({"target_dir": ["archive/train/", "archive/test/", "archive/val/"]})
-    .with_columns(files=plfs.ls_dir(dir_path=pl.col("target_dir")))
+### 2. List Directory Contents
+
+We can read the directory contents straight into a DataFrame.
+
+```python
+root_dir = str(temp_dir)
+
+df = (
+    pl.DataFrame({"source_folder": [root_dir]})
+    .with_columns(files=plfs.ls_dir(dir_path="source_folder"))
+    .select("files")
     .explode("files")
 )
 
-print(dir_contents)
+print(df.head(3))
+```
+
+**Output:**
+```text
+shape: (3, 1)
+┌─────────────────────────┐
+│ files                   │
+│ ---                     │
+│ str                     │
+╞═════════════════════════╡
+│ /tmp/tmpxd79bk63/19.txt │
+│ /tmp/tmpxd79bk63/18.txt │
+│ /tmp/tmpxd79bk63/17.txt │
+└─────────────────────────┘
+```
+
+### 3. Copy (Backup) Files
+
+Now we can copy these files over to a new `backup` directory using `uucp_file`.
+
+```python
+backup_dir = Path(temp_dir) / "backup"
+backup_dir.mkdir(parents=True, exist_ok=True)
+
+df = df.with_columns(
+    bak=plfs.uucp_file(
+        from_path="files",
+        to_path=pl.lit(str(backup_dir)),
+        progress_bar=True,
+        dry_run=False,
+    )
+)
+
+print(df.head(3))
+```
+
+**Output:**
+```text
+shape: (3, 2)
+┌─────────────────────────┬──────┐
+│ files                   ┆ bak  │
+│ ---                     ┆ ---  │
+│ str                     ┆ bool │
+╞═════════════════════════╪══════╡
+│ /tmp/tmpxd79bk63/19.txt ┆ true │
+│ /tmp/tmpxd79bk63/18.txt ┆ true │
+│ /tmp/tmpxd79bk63/17.txt ┆ true │
+└─────────────────────────┴──────┘
+```
+### 4. Create a new folder and copy files there
+
+If you want to move or copy data further, you can chain additional operations.
+
+```python
+new_folder = Path(temp_dir) / "raw_data"
+new_folder.mkdir(parents=True, exist_ok=True)
+
+df_moved = df.with_columns(
+    moved=plfs.uucp_file(
+        from_path="files",
+        to_path=pl.lit(str(new_folder)),
+        progress_bar=True,
+        dry_run=False,
+    )
+)
+
+print(df_moved.head(3))
+```
+
+**Output:**
+```text
+shape: (3, 3)
+┌─────────────────────────┬──────┬───────┐
+│ files                   ┆ bak  ┆ moved │
+│ ---                     ┆ ---  ┆ ---   │
+│ str                     ┆ bool ┆ bool  │
+╞═════════════════════════╪══════╪═══════╡
+│ /tmp/tmpxd79bk63/19.txt ┆ true ┆ true  │
+│ /tmp/tmpxd79bk63/18.txt ┆ true ┆ true  │
+│ /tmp/tmpxd79bk63/17.txt ┆ true ┆ true  │
+└─────────────────────────┴──────┴───────┘
+```
+
+### 5. Remove Original Files
+
+Finally, we can delete the source files using `rm_file`.
+
+```python
+df = df.with_columns(
+    removed=plfs.rm_file(
+        file_path="files",
+        dry_run=False,
+    )
+)
+
+print(df.head(3))
+```
+
+**Output:**
+```text
+shape: (3, 3)
+┌─────────────────────────┬──────┬─────────┐
+│ files                   ┆ bak  ┆ removed │
+│ ---                     ┆ ---  ┆ ---     │
+│ str                     ┆ bool ┆ bool    │
+╞═════════════════════════╪══════╪═════════╡
+│ /tmp/tmpxd79bk63/19.txt ┆ true ┆ true    │
+│ /tmp/tmpxd79bk63/18.txt ┆ true ┆ true    │
+│ /tmp/tmpxd79bk63/17.txt ┆ true ┆ true    │
+└─────────────────────────┴──────┴─────────┘
 ```
