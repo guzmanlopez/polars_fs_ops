@@ -4,16 +4,23 @@ pub fn check_file_to_file(from_path: Option<&str>, to_path: Option<&str>) -> boo
     match (from_path, to_path) {
         (Some(from), Some(to)) => {
             let from_is_file = Path::new(from).is_file();
-            from_is_file && has_valid_parent_dir(Some(to)) && has_same_ext(Some(from), Some(to))
+            from_is_file && has_valid_parent_dir(Some(to))
         },
         _ => false,
     }
 }
 
-pub fn check_valid_mv(from_path: Option<&str>, to_path: Option<&str>) -> bool {
+pub fn check_valid_mv(
+    from_path: Option<&str>,
+    to_path: Option<&str>,
+    preserve_extension: bool,
+) -> bool {
     match (from_path, to_path) {
         (Some(from), Some(to)) => {
             if check_file_to_file(Some(from), Some(to)) {
+                if preserve_extension && !has_same_ext(from_path, to_path) {
+                    return false;
+                }
                 true
             } else {
                 let from_is_dir = Path::new(from).is_dir();
@@ -59,10 +66,10 @@ pub fn has_valid_parent_dir(path_str: Option<&str>) -> bool {
     match path_str {
         Some(s) if !s.is_empty() => {
             let path = Path::new(s);
-            if let Some(parent) = path.parent() {
-                Path::new(parent.to_str().unwrap_or("")).is_dir()
-            } else {
-                false
+            match path.parent() {
+                Some(parent) if parent.as_os_str().is_empty() => Path::new(".").is_dir(),
+                Some(parent) => parent.is_dir(),
+                None => false,
             }
         },
         _ => false,

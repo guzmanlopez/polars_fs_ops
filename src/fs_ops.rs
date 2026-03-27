@@ -44,6 +44,7 @@ fn cp_file(inputs: &[Series], kwargs: CpFileKwargs) -> PolarsResult<Series> {
 #[derive(Deserialize)]
 struct MvFileKwargs {
     dry_run: bool,
+    preserve_extension: bool,
 }
 
 #[polars_expr(output_type=Boolean)]
@@ -51,11 +52,12 @@ fn mv_file(inputs: &[Series], kwargs: MvFileKwargs) -> PolarsResult<Series> {
     let from: &StringChunked = inputs[0].str()?;
     let to: &StringChunked = inputs[1].str()?;
     let dry_run: bool = kwargs.dry_run;
+    let preserve_extension: bool = kwargs.preserve_extension;
     let out: BooleanChunked =
         broadcast_binary_elementwise(from, to, |from: Option<&str>, to: Option<&str>| {
             match (from, to) {
                 (Some(from), Some(to)) => {
-                    let valid = check_valid_mv(Some(from), Some(to));
+                    let valid = check_valid_mv(Some(from), Some(to), preserve_extension);
                     if !dry_run && valid {
                         std::fs::rename(from, to).is_ok()
                     } else {
@@ -156,6 +158,7 @@ fn uucp_file(inputs: &[Series], kwargs: UuCpKwargs) -> PolarsResult<Series> {
 
 #[derive(Deserialize)]
 struct UuMvKwargs {
+    preserve_extension: bool,
     progress_bar: bool,
     dry_run: bool,
 }
@@ -165,6 +168,7 @@ fn uumv_file(inputs: &[Series], kwargs: UuMvKwargs) -> PolarsResult<Series> {
     let from: &StringChunked = inputs[0].str()?;
     let to: &StringChunked = inputs[1].str()?;
     let dry_run: bool = kwargs.dry_run;
+    let preserve_extension: bool = kwargs.preserve_extension;
     let options = uu_mv::Options {
         progress_bar: kwargs.progress_bar,
         ..Default::default()
@@ -173,7 +177,7 @@ fn uumv_file(inputs: &[Series], kwargs: UuMvKwargs) -> PolarsResult<Series> {
         broadcast_binary_elementwise(from, to, |from: Option<&str>, to: Option<&str>| {
             match (from, to) {
                 (Some(from), Some(to)) => {
-                    let valid = check_valid_mv(Some(from), Some(to));
+                    let valid = check_valid_mv(Some(from), Some(to), preserve_extension);
                     if !dry_run && valid {
                         uu_mv::mv(&[OsString::from(from), OsString::from(to)], &options).is_ok()
                     } else {

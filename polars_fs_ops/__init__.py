@@ -28,7 +28,7 @@ def cp_file(from_path: IntoExprColumn, to_path: IntoExprColumn, dry_run: bool = 
 
     Args:
         from_path: Column or expression containing source file paths.
-        to_path: Column or expression containing destination file paths or directories.
+        to_path: Column or expression containing destination file paths.
         dry_run: If True, only simulate the copy without actually performing it.
 
     Returns:
@@ -43,12 +43,18 @@ def cp_file(from_path: IntoExprColumn, to_path: IntoExprColumn, dry_run: bool = 
     )
 
 
-def mv_file(from_path: IntoExprColumn, to_path: IntoExprColumn, dry_run: bool = False) -> pl.Expr:
+def mv_file(
+    from_path: IntoExprColumn,
+    to_path: IntoExprColumn,
+    preserve_extension: bool = True,
+    dry_run: bool = False,
+) -> pl.Expr:
     """Move (rename) files from source paths to destination paths using std::fs.
 
     Args:
         from_path: Column or expression containing source file paths.
         to_path: Column or expression containing destination file paths.
+        preserve_extension: If True, only allow file to file moves that preserve file extensions.
         dry_run: If True, only simulate the move without actually performing it.
 
     Returns:
@@ -59,7 +65,7 @@ def mv_file(from_path: IntoExprColumn, to_path: IntoExprColumn, dry_run: bool = 
         plugin_path=LIB,
         function_name="mv_file",
         is_elementwise=True,
-        kwargs={"dry_run": dry_run},
+        kwargs={"preserve_extension": preserve_extension, "dry_run": dry_run},
     )
 
 
@@ -113,7 +119,7 @@ def uucp_file(
 
     Args:
         from_path: Column or expression containing source file paths.
-        to_path: Column or expression containing destination directory paths.
+        to_path: Column or expression containing destination file paths or directories.
         progress_bar: Whether to display a progress bar during copy.
         dry_run: If True, only simulate the copy without actually performing it.
 
@@ -132,6 +138,7 @@ def uucp_file(
 def uumv_file(
     from_path: IntoExprColumn,
     to_dir: IntoExprColumn,
+    preserve_extension: bool = True,
     progress_bar: bool = True,
     dry_run: bool = False,
 ) -> pl.Expr:
@@ -140,6 +147,7 @@ def uumv_file(
     Args:
         from_path: Column or expression containing source file paths.
         to_dir: Column or expression containing destination paths or directory.
+        preserve_extension: If True, only allow file to file moves that preserve file extensions.
         progress_bar: Whether to display a progress bar during move.
         dry_run: If True, only simulate the move without actually performing it.
 
@@ -151,7 +159,11 @@ def uumv_file(
         plugin_path=LIB,
         function_name="uumv_file",
         is_elementwise=True,
-        kwargs={"progress_bar": progress_bar, "dry_run": dry_run},
+        kwargs={
+            "preserve_extension": preserve_extension,
+            "progress_bar": progress_bar,
+            "dry_run": dry_run,
+        },
     )
 
 
@@ -182,13 +194,14 @@ def cpx_file(
 
 # Checks
 def file_exists(file_path: IntoExprColumn) -> pl.Expr:
-    """Check whether each file path exists.
+    """Check whether each file path points to an existing file.
 
     Args:
         file_path: Column or expression containing file paths.
 
     Returns:
-        A Boolean expression indicating existence of each path.
+        A Boolean expression indicating whether each path points to an existing file
+        (directories and other non-file paths return False).
     """
     return register_plugin_function(
         args=[file_path],

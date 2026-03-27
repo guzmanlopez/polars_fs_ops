@@ -63,11 +63,13 @@ import tempfile
 from pathlib import Path
 
 import polars as pl
-import polars_fs_ops as plfs
+
+from polars_fs_ops import ls_dir, rm_file, uucp_file, uumv_file
+
 
 pl.Config.set_fmt_str_lengths(150)
 
-# Create a temporal folder and 20 files for testing
+# Create a temporary folder and 20 files for testing
 temp_dir = tempfile.mkdtemp()
 Path(temp_dir).mkdir(parents=True, exist_ok=True)
 
@@ -85,7 +87,7 @@ root_dir = str(temp_dir)
 
 df = (
     pl.DataFrame({"source_folder": [root_dir]})
-    .with_columns(files=plfs.ls_dir(dir_path="source_folder"))
+    .with_columns(files=ls_dir(dir_path="source_folder"))
     .select("files")
     .explode("files")
 )
@@ -116,7 +118,7 @@ backup_dir = Path(temp_dir) / "backup"
 backup_dir.mkdir(parents=True, exist_ok=True)
 
 df = df.with_columns(
-    bak=plfs.uucp_file(
+    bak=uucp_file(
         from_path="files",
         to_path=pl.lit(str(backup_dir)),
         progress_bar=True,
@@ -140,7 +142,7 @@ shape: (3, 2)
 │ /tmp/tmpxd79bk63/17.txt ┆ true │
 └─────────────────────────┴──────┘
 ```
-### 4. Create a new folder and copy files there
+### 4. Create a new folder and move files there
 
 If you want to move or copy data further, you can chain additional operations.
 
@@ -149,9 +151,9 @@ new_folder = Path(temp_dir) / "raw_data"
 new_folder.mkdir(parents=True, exist_ok=True)
 
 df_moved = df.with_columns(
-    moved=plfs.uucp_file(
+    moved=uumv_file(
         from_path="files",
-        to_path=pl.lit(str(new_folder)),
+        to_dir=pl.lit(str(new_folder)),
         progress_bar=True,
         dry_run=False,
     )
@@ -180,7 +182,7 @@ Finally, we can delete the source files using `rm_file`.
 
 ```python
 df = df.with_columns(
-    removed=plfs.rm_file(
+    removed=rm_file(
         file_path="files",
         dry_run=False,
     )
