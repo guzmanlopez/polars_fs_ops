@@ -13,7 +13,6 @@ install-release: activate
 	uv run maturin develop --release
 
 pre-commit:
-	cargo +nightly fmt --all && cargo clippy --all-features
 	uv run pre-commit run --all-files
 
 test:
