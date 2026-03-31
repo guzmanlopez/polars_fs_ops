@@ -197,6 +197,16 @@ class TestCpFile:
         assert result["src"].to_list() == [True]
         assert os.path.exists(dst)
 
+    def test_copy_same_path(self, tmp_dir: str):
+        """Handle copying a file to the same path."""
+        src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
+        df = pl.DataFrame({"src": [src], "dst": [src]})
+        result = df.select(cp_file("src", "dst"))
+        assert result["src"].to_list() == [False]
+        assert os.path.exists(src)
+        with open(src) as f:
+            assert f.read() == "data"
+
     def test_copy_dry_run_success(self, tmp_dir: str):
         """Report success without creating the destination file."""
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
@@ -287,6 +297,16 @@ class TestMvFile:
         )
         result = df.select(mv_file("src", "dst"))
         assert result["src"].to_list() == [False, False, False]
+
+    def test_move_same_path(self, tmp_dir: str):
+        """Handle moving a file to the same path."""
+        src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
+        df = pl.DataFrame({"src": [src], "dst": [src]})
+        result = df.select(mv_file("src", "dst"))
+        assert result["src"].to_list() == [False]
+        assert os.path.exists(src)
+        with open(src) as f:
+            assert f.read() == "data"
 
     def test_move_dry_run_success(self, tmp_dir: str):
         """Report a successful move without changing the filesystem."""
@@ -455,6 +475,16 @@ class TestUucpFile:
         assert result["src"].to_list() == [True]
         assert os.path.exists(dst)
 
+    def test_copy_same_path(self, tmp_dir: str):
+        """Handle copying a file to the same path."""
+        src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
+        df = pl.DataFrame({"src": [src], "dst": [src]})
+        result = df.select(uucp_file("src", "dst", False, False))
+        assert result["src"].to_list() == [False]
+        assert os.path.exists(src)
+        with open(src) as f:
+            assert f.read() == "data"
+
     def test_copy_dry_run_success(self, tmp_dir: str):
         """Report success without creating the copied file."""
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "uucp data")
@@ -523,6 +553,16 @@ class TestUumvFile:
         result = df.select(uumv_file("src", "dst", True, progress_bar=False, dry_run=False))
         assert result["src"].to_list() == [False]
 
+    def test_move_same_path(self, tmp_dir: str):
+        """Handle moving a file to the same path."""
+        src = _create_file(os.path.join(tmp_dir, "src.txt"), "uumv data")
+        df = pl.DataFrame({"src": [src], "dst": [src]})
+        result = df.select(uumv_file("src", "dst", True, progress_bar=False, dry_run=False))
+        assert result["src"].to_list() == [False]
+        assert os.path.exists(src)
+        with open(src) as f:
+            assert f.read() == "uumv data"
+
     def test_move_dry_run_success(self, tmp_dir: str):
         """Report success without moving the file."""
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "uumv data")
@@ -590,6 +630,17 @@ class TestCpxFile:
         result = df.select(cpx_file("src", "dst"))
         assert result["src"].to_list() == [True]
         assert os.path.exists(dst)
+
+    @pytest.mark.skipif(sys.platform != "linux", reason="cpx_file is only supported on Linux")
+    def test_copy_same_path(self, tmp_dir: str):
+        """Handle copying a file to the same path."""
+        src = _create_file(os.path.join(tmp_dir, "src.txt"), "cpx data")
+        df = pl.DataFrame({"src": [src], "dst": [src]})
+        result = df.select(cpx_file("src", "dst", 0))
+        assert result["src"].to_list() == [False]
+        assert os.path.exists(src)
+        with open(src) as f:
+            assert f.read() == "cpx data"
 
     @pytest.mark.skipif(sys.platform != "linux", reason="cpx_file is only supported on Linux")
     def test_copy_dry_run_success(self, tmp_dir: str):

@@ -11,7 +11,7 @@ use polars::prelude::*;
 use pyo3_polars::derive::polars_expr;
 use serde::Deserialize;
 
-use crate::utils::{check_file_to_dir, check_file_to_file, check_valid_mv};
+use crate::utils::{file_to_dir, file_to_file, same_path, valid_mv};
 
 //  Using std::fs for operations
 #[derive(Deserialize)]
@@ -28,7 +28,7 @@ fn cp_file(inputs: &[Series], kwargs: CpFileKwargs) -> PolarsResult<Series> {
         broadcast_binary_elementwise(from, to, |from: Option<&str>, to: Option<&str>| {
             match (from, to) {
                 (Some(from), Some(to)) => {
-                    let valid = check_file_to_file(Some(from), Some(to));
+                    let valid = file_to_file(Some(from), Some(to));
                     if !dry_run && valid {
                         std::fs::copy(from, to).is_ok()
                     } else {
@@ -47,17 +47,16 @@ struct MvFileKwargs {
     preserve_extension: bool,
 }
 
-fn resolve_mv_destination(from: &str, to: &str) -> PathBuf {
+fn resolve_mv_destination(from: &str, to: &str) -> String {
     let from_path = Path::new(from);
     let to_path = Path::new(to);
 
     if from_path.is_file() && to_path.is_dir() {
         if let Some(file_name) = from_path.file_name() {
-            return to_path.join(file_name);
+            return to_path.join(file_name).to_string_lossy().to_string();
         }
     }
-
-    to_path.to_path_buf()
+    to.to_string()
 }
 
 #[polars_expr(output_type=Boolean)]
@@ -70,10 +69,12 @@ fn mv_file(inputs: &[Series], kwargs: MvFileKwargs) -> PolarsResult<Series> {
         broadcast_binary_elementwise(from, to, |from: Option<&str>, to: Option<&str>| {
             match (from, to) {
                 (Some(from), Some(to)) => {
-                    let valid = check_valid_mv(Some(from), Some(to), preserve_extension);
+                    let to = resolve_mv_destination(from, to);
+                    let valid = valid_mv(Some(from), Some(&to), preserve_extension)
+                        && !same_path(Some(from), Some(&to));
+
                     if !dry_run && valid {
-                        let destination = resolve_mv_destination(from, to);
-                        std::fs::rename(from, destination).is_ok()
+                        std::fs::rename(from, &to).is_ok()
                     } else {
                         valid
                     }
@@ -156,8 +157,8 @@ fn uucp_file(inputs: &[Series], kwargs: UuCpKwargs) -> PolarsResult<Series> {
         broadcast_binary_elementwise(from, to, |from: Option<&str>, to: Option<&str>| {
             match (from, to) {
                 (Some(from), Some(to)) => {
-                    let valid = check_file_to_file(Some(from), Some(to))
-                        || check_file_to_dir(Some(from), Some(to));
+                    let valid =
+                        file_to_file(Some(from), Some(to)) || file_to_dir(Some(from), Some(to));
                     if !dry_run && valid {
                         uu_cp::copy(&[PathBuf::from(from)], Path::new(to), &options).is_ok()
                     } else {
@@ -191,7 +192,7 @@ fn uumv_file(inputs: &[Series], kwargs: UuMvKwargs) -> PolarsResult<Series> {
         broadcast_binary_elementwise(from, to, |from: Option<&str>, to: Option<&str>| {
             match (from, to) {
                 (Some(from), Some(to)) => {
-                    let valid = check_valid_mv(Some(from), Some(to), preserve_extension);
+                    let valid = valid_mv(Some(from), Some(to), preserve_extension);
                     if !dry_run && valid {
                         uu_mv::mv(&[OsString::from(from), OsString::from(to)], &options).is_ok()
                     } else {
@@ -225,7 +226,7 @@ fn cpx_file(inputs: &[Series], kwargs: CpxKwargs) -> PolarsResult<Series> {
         broadcast_binary_elementwise(from, to, |from: Option<&str>, to: Option<&str>| {
             match (from, to) {
                 (Some(from), Some(to)) => {
-                    let valid = check_file_to_file(Some(from), Some(to));
+                    let valid = file_to_file(Some(from), Some(to));
                     if !dry_run && valid {
                         copy(Path::new(from), Path::new(to), &options).is_ok()
                     } else {
