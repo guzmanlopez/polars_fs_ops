@@ -17,7 +17,9 @@ pub fn check_valid_mv(
 ) -> bool {
     match (from_path, to_path) {
         (Some(from), Some(to)) => {
-            if check_file_to_file(Some(from), Some(to)) {
+            if check_file_to_dir(Some(from), Some(to)) {
+                true
+            } else if check_file_to_file(Some(from), Some(to)) {
                 if preserve_extension && !has_same_ext(from_path, to_path) {
                     return false;
                 }

@@ -29,6 +29,7 @@ def cp_file(from_path: IntoExprColumn, to_path: IntoExprColumn, dry_run: bool = 
     Args:
         from_path: Column or expression containing source file paths.
         to_path: Column or expression containing destination file paths.
+            Existing directories are rejected.
         dry_run: If True, only simulate the copy without actually performing it.
 
     Returns:
@@ -53,8 +54,10 @@ def mv_file(
 
     Args:
         from_path: Column or expression containing source file paths.
-        to_path: Column or expression containing destination file paths.
-        preserve_extension: If True, only allow file to file moves that preserve file extensions.
+        to_path: Column or expression containing destination file paths or existing
+            directories. When a directory is provided, the source filename is appended.
+        preserve_extension: If True, require matching file extensions for file-to-file
+            moves.
         dry_run: If True, only simulate the move without actually performing it.
 
     Returns:
@@ -119,7 +122,8 @@ def uucp_file(
 
     Args:
         from_path: Column or expression containing source file paths.
-        to_path: Column or expression containing destination file paths or directories.
+        to_path: Column or expression containing destination file paths or existing
+            directories.
         progress_bar: Whether to display a progress bar during copy.
         dry_run: If True, only simulate the copy without actually performing it.
 
@@ -137,7 +141,7 @@ def uucp_file(
 
 def uumv_file(
     from_path: IntoExprColumn,
-    to_dir: IntoExprColumn,
+    to_path: IntoExprColumn,
     preserve_extension: bool = True,
     progress_bar: bool = True,
     dry_run: bool = False,
@@ -146,8 +150,10 @@ def uumv_file(
 
     Args:
         from_path: Column or expression containing source file paths.
-        to_dir: Column or expression containing destination paths or directory.
-        preserve_extension: If True, only allow file to file moves that preserve file extensions.
+        to_path: Column or expression containing destination file paths or existing
+            directories.
+        preserve_extension: If True, require matching file extensions for file-to-file
+            moves.
         progress_bar: Whether to display a progress bar during move.
         dry_run: If True, only simulate the move without actually performing it.
 
@@ -155,7 +161,7 @@ def uumv_file(
         A Boolean expression indicating success of each move operation.
     """
     return register_plugin_function(
-        args=[from_path, to_dir],
+        args=[from_path, to_path],
         plugin_path=LIB,
         function_name="uumv_file",
         is_elementwise=True,
@@ -174,8 +180,10 @@ def cpx_file(
 
     Args:
         from_path: Column or expression containing source file paths.
-        to_path: Column or expression containing destination file paths.
-        parallel: Number of parallel copy threads (0 for default).
+        to_path: Column or expression containing destination file paths or existing
+            directories.
+        parallel: Number of parallel copy threads to request. Use 0 for the library
+            default.
         dry_run: If True, only simulate the copy without actually performing it.
 
     Returns:

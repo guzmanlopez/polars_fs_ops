@@ -47,6 +47,19 @@ struct MvFileKwargs {
     preserve_extension: bool,
 }
 
+fn resolve_mv_destination(from: &str, to: &str) -> PathBuf {
+    let from_path = Path::new(from);
+    let to_path = Path::new(to);
+
+    if from_path.is_file() && to_path.is_dir() {
+        if let Some(file_name) = from_path.file_name() {
+            return to_path.join(file_name);
+        }
+    }
+
+    to_path.to_path_buf()
+}
+
 #[polars_expr(output_type=Boolean)]
 fn mv_file(inputs: &[Series], kwargs: MvFileKwargs) -> PolarsResult<Series> {
     let from: &StringChunked = inputs[0].str()?;
@@ -59,7 +72,8 @@ fn mv_file(inputs: &[Series], kwargs: MvFileKwargs) -> PolarsResult<Series> {
                 (Some(from), Some(to)) => {
                     let valid = check_valid_mv(Some(from), Some(to), preserve_extension);
                     if !dry_run && valid {
-                        std::fs::rename(from, to).is_ok()
+                        let destination = resolve_mv_destination(from, to);
+                        std::fs::rename(from, destination).is_ok()
                     } else {
                         valid
                     }
