@@ -5,6 +5,8 @@
 
 Extremely shrimple (but not crab), this Python Polars Rust plugin provides filesystem operations such as copy, move, remove, and list directory, using file paths stored in a Polars DataFrame. It's a wrapper around Rust's standard filesystem APIs (`std::fs`), Rust rewrite of the GNU coreutils (`uutils`) and others.
 
+This plugin exists to bring the same expressive, DataFrame-centric API style that Polars offers to filesystem workflows. It is not mainly about performance improvements, because these operations are mostly I/O-bound; the value is keeping a consistent API around objects that already live in a Polars DataFrame.
+
 ## Installation
 
 ### From a GitHub Release (pre-built wheel, no Rust needed)

@@ -112,6 +112,27 @@ def ls_dir(dir_path: IntoExprColumn) -> pl.Expr:
     )
 
 
+def ls_dir_with_mod(dir_path: IntoExprColumn) -> pl.Expr:
+    """List directory contents with modification times.
+
+    Each row returns a ``List(Struct({path: String, modified: Datetime[us]}))``
+    of entries in the directory. Use ``.explode()`` to expand into individual rows.
+
+    Args:
+        dir_path: Column or expression containing directory paths.
+
+    Returns:
+        A List(Struct) expression with directory entries and their modification
+        times, or null for non-existent directories.
+    """
+    return register_plugin_function(
+        args=[dir_path],
+        plugin_path=LIB,
+        function_name="ls_dir_with_mod",
+        is_elementwise=True,
+    )
+
+
 def uucp_file(
     from_path: IntoExprColumn,
     to_path: IntoExprColumn,

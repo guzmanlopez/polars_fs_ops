@@ -1,11 +1,13 @@
 #![allow(clippy::unused_unit)]
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
 
 #[cfg(target_os = "linux")]
 use cpx::cli::args::CopyOptions;
 #[cfg(target_os = "linux")]
 use cpx::core::copy::copy;
+use polars::chunked_array::builder::AnonymousOwnedListBuilder;
 use polars::prelude::arity::broadcast_binary_elementwise;
 use polars::prelude::*;
 use pyo3_polars::derive::polars_expr;
@@ -137,7 +139,83 @@ fn ls_dir(inputs: &[Series]) -> PolarsResult<Series> {
     Ok(out.into_series())
 }
 
+fn ls_dir_with_mod_output(_: &[Field]) -> PolarsResult<Field> {
+    let struct_dtype = DataType::Struct(vec![
+        Field::new("path".into(), DataType::String),
+        Field::new(
+            "modified".into(),
+            DataType::Datetime(TimeUnit::Microseconds, None),
+        ),
+    ]);
+    Ok(Field::new(
+        "ls_dir_with_mod".into(),
+        DataType::List(Box::new(struct_dtype)),
+    ))
+}
+
+#[polars_expr(output_type_func=ls_dir_with_mod_output)]
+fn ls_dir_with_mod(inputs: &[Series]) -> PolarsResult<Series> {
+    let ca: &StringChunked = inputs[0].str()?;
+
+    let struct_dtype = DataType::Struct(vec![
+        Field::new("path".into(), DataType::String),
+        Field::new(
+            "modified".into(),
+            DataType::Datetime(TimeUnit::Microseconds, None),
+        ),
+    ]);
+    let mut builder =
+        AnonymousOwnedListBuilder::new("ls_dir_with_mod".into(), ca.len(), Some(struct_dtype));
+
+    for opt_val in ca.into_iter() {
+        match opt_val {
+            Some(dir_path) => match std::fs::read_dir(dir_path) {
+                Ok(entries) => {
+                    let mut paths: Vec<String> = Vec::new();
+                    let mut modified_us: Vec<Option<i64>> = Vec::new();
+
+                    for entry in entries.filter_map(Result::ok) {
+                        paths.push(entry.path().to_string_lossy().to_string());
+                        let modified = entry
+                            .metadata()
+                            .ok()
+                            .and_then(|m| m.modified().ok())
+                            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                            .map(|d| d.as_micros() as i64);
+                        modified_us.push(modified);
+                    }
+
+                    let path_series = StringChunked::from_iter_values(
+                        "path".into(),
+                        paths.iter().map(|s| s.as_str()),
+                    )
+                    .into_series();
+
+                    let modified_series = Int64Chunked::new("modified".into(), &modified_us)
+                        .into_datetime(TimeUnit::Microseconds, None)
+                        .into_series();
+
+                    let struct_series = StructChunked::from_series(
+                        PlSmallStr::EMPTY,
+                        path_series.len(),
+                        [&path_series, &modified_series].into_iter(),
+                    )?
+                    .into_series();
+
+                    builder.append_series(&struct_series)?;
+                },
+                Err(_) => builder.append_null(),
+            },
+            None => builder.append_null(),
+        }
+    }
+
+    let out = builder.finish();
+    Ok(out.into_series())
+}
+
 // Using uutils for operations: Cross-platform Rust rewrite of the GNU coreutils
+
 #[derive(Deserialize)]
 struct UuCpKwargs {
     progress_bar: bool,

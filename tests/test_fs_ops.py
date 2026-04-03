@@ -1,5 +1,6 @@
 """Tests for polars_fs_ops file system operations."""
 
+import datetime as dt
 import os
 import sys
 import tempfile
@@ -13,6 +14,7 @@ from polars_fs_ops import (
     cpx_file,
     file_exists,
     ls_dir,
+    ls_dir_with_mod,
     mv_file,
     rm_file,
     uucp_file,
@@ -420,6 +422,59 @@ class TestLsDir:
         result = df.select(ls_dir("dir")).explode("dir")
         assert result.shape[0] == 2
         assert result["dir"].dtype == pl.String
+
+
+# ── ls_dir_with_mod ──────────────────────────────────────────────────────────
+
+
+class TestLsDirWithMod:
+    """Tests for the ls_dir_with_mod expression."""
+
+    def test_list_directory_with_mod(self, tmp_dir: str):
+        """Return directory entries with modification times."""
+        path_a = _create_file(os.path.join(tmp_dir, "a.txt"))
+        path_b = _create_file(os.path.join(tmp_dir, "b.txt"))
+        df = pl.DataFrame({"dir": [tmp_dir]})
+        result = df.select(ls_dir_with_mod("dir"))
+        entries = result["dir"][0].to_list()
+        by_path = {entry["path"]: entry["modified"] for entry in entries}
+        assert len(entries) == 2
+        assert path_a in by_path
+        assert path_b in by_path
+        assert isinstance(by_path[path_a], dt.datetime)
+        assert isinstance(by_path[path_b], dt.datetime)
+        expected_a = dt.datetime.fromtimestamp(
+            os.path.getmtime(path_a), tz=dt.timezone.utc
+        ).replace(tzinfo=None)
+        expected_b = dt.datetime.fromtimestamp(
+            os.path.getmtime(path_b), tz=dt.timezone.utc
+        ).replace(tzinfo=None)
+        assert abs((by_path[path_a] - expected_a).total_seconds()) < 1.0
+        assert abs((by_path[path_b] - expected_b).total_seconds()) < 1.0
+
+    def test_list_empty_directory(self, tmp_dir: str):
+        """Return an empty list for an empty folder."""
+        empty = os.path.join(tmp_dir, "empty")
+        os.makedirs(empty)
+        df = pl.DataFrame({"dir": [empty]})
+        result = df.select(ls_dir_with_mod("dir"))
+        assert result["dir"][0].to_list() == []
+
+    def test_list_nonexistent_directory(self):
+        """Return null for a missing directory."""
+        df = pl.DataFrame({"dir": ["/tmp/__no_such_dir_xyz__"]})
+        result = df.select(ls_dir_with_mod("dir"))
+        assert result["dir"][0] is None
+
+    def test_explode(self, tmp_dir: str):
+        """Produce path and datetime rows after exploding list output."""
+        _create_file(os.path.join(tmp_dir, "x.txt"))
+        _create_file(os.path.join(tmp_dir, "y.txt"))
+        df = pl.DataFrame({"dir": [tmp_dir]})
+        result = df.select(ls_dir_with_mod("dir")).explode("dir").unnest("dir")
+        assert result.shape[0] == 2
+        assert result["path"].dtype == pl.String
+        assert isinstance(result.dtypes[1], pl.Datetime)
 
 
 # ── uucp_file ────────────────────────────────────────────────────────────────
