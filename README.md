@@ -11,19 +11,77 @@ This plugin exists to bring the same expressive, DataFrame-centric API style tha
 
 ### From a GitHub Release (pre-built wheel, no Rust needed)
 
-Using `uv`:
+Pre-built wheels are published as GitHub Release assets. Choose the wheel whose platform tag matches your operating system and CPU architecture.
+
+This project requires Python 3.11+, so release wheels use the `cp311-abi3` tag.
+
+`cp311-abi3` does not mean "Python 3.11 only". It means the extension is built against CPython's stable ABI with Python 3.11 as the minimum supported version, so the same wheel can be installed on CPython 3.11, 3.12, and 3.13.
+
+Some releases may also include free-threaded Python 3.14 wheels with a `cp314t` tag. Those are separate artifacts and are not the same as the standard `abi3` wheels.
+
+#### Linux
+
+For glibc-based Linux distributions such as Arch Linux, Ubuntu, Debian, and Fedora, use one of these wheel names:
+
+- `polars_fs_ops-VERSION-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl`
+- `polars_fs_ops-VERSION-cp311-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl`
+
+Using `uv` on Linux `x86_64`:
 
 ```bash
-uv add 'polars_fs_ops @ https://github.com/guzmanlopez/polars_fs_ops/releases/download/VERSION/polars_fs_ops-VERSION-cp39-abi3-linux_x86_64.whl'
+uv add 'polars_fs_ops @ https://github.com/guzmanlopez/polars_fs_ops/releases/download/VERSION/polars_fs_ops-VERSION-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl'
 ```
 
-Using `pip`:
+Using `pip` on Linux `x86_64`:
 
 ```bash
-pip install 'https://github.com/guzmanlopez/polars_fs_ops/releases/download/VERSION/polars_fs_ops-VERSION-cp39-abi3-linux_x86_64.whl'
+pip install 'https://github.com/guzmanlopez/polars_fs_ops/releases/download/VERSION/polars_fs_ops-VERSION-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl'
 ```
 
-Replace `VERSION` with the desired release tag (e.g., `v0.1.0`) and choose the appropriate wheel for your platform.
+On Linux `aarch64`, replace the filename with the corresponding `aarch64` wheel.
+
+#### macOS
+
+Use the wheel that matches your Mac architecture:
+
+- Intel Macs: `polars_fs_ops-VERSION-cp311-abi3-macosx_10_12_x86_64.whl`
+- Apple Silicon Macs: `polars_fs_ops-VERSION-cp311-abi3-macosx_11_0_arm64.whl`
+
+Using `uv` on macOS Apple Silicon:
+
+```bash
+uv add 'polars_fs_ops @ https://github.com/guzmanlopez/polars_fs_ops/releases/download/VERSION/polars_fs_ops-VERSION-cp311-abi3-macosx_11_0_arm64.whl'
+```
+
+Using `pip` on macOS Apple Silicon:
+
+```bash
+pip install 'https://github.com/guzmanlopez/polars_fs_ops/releases/download/VERSION/polars_fs_ops-VERSION-cp311-abi3-macosx_11_0_arm64.whl'
+```
+
+If you are on an Intel Mac, replace the filename with the `macosx_10_12_x86_64` wheel.
+
+#### Windows
+
+Use the wheel that matches your Windows architecture:
+
+- `x64`: `polars_fs_ops-VERSION-cp311-abi3-win_amd64.whl`
+- `x86`: `polars_fs_ops-VERSION-cp311-abi3-win32.whl`
+- `ARM64`: `polars_fs_ops-VERSION-cp311-abi3-win_arm64.whl`
+
+Using `uv` on Windows `x64`:
+
+```bash
+uv add "polars_fs_ops @ https://github.com/guzmanlopez/polars_fs_ops/releases/download/VERSION/polars_fs_ops-VERSION-cp311-abi3-win_amd64.whl"
+```
+
+Using `pip` on Windows `x64`:
+
+```bash
+pip install "https://github.com/guzmanlopez/polars_fs_ops/releases/download/VERSION/polars_fs_ops-VERSION-cp311-abi3-win_amd64.whl"
+```
+
+Replace `VERSION` with the desired release tag, such as `v0.1.0`, and swap in the wheel filename that matches your OS and CPU architecture.
 
 ### From source (requires Rust toolchain)
 
