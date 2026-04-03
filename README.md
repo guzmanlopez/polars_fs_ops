@@ -9,7 +9,7 @@ This plugin exists to bring the same expressive, DataFrame-centric API style tha
 
 ## Installation
 
-### From a GitHub Release (pre-built wheel, no Rust needed)
+### From a GitHub release (pre-built wheel, no Rust needed)
 
 Pre-built wheels are published as GitHub Release assets. Choose the wheel whose platform tag matches your operating system and CPU architecture.
 
@@ -110,157 +110,276 @@ dependencies = [
 ]
 ```
 
-## Usage Example
+## Usage example
 
-Imagine you have a dataset of downloaded files, and you want to back them up, copy them to a new folder, and clean up the originals — all natively within a Polars lazy/eager computation graph! 
+Imagine you have an incoming folder of downloaded files and you want to inspect it, build a manifest with modification times, back everything up, move only the tabular files to a curated folder, and clean up logs, all while staying inside a Polars expression workflow.
 
-### 1. Setup & Create Test Files
+The snippets below were executed to verify the shown outputs.
 
-First, let's create a temporary directory populated with some test files.
+### 1. Set up a small, deterministic demo folder
 
 ```python
-import tempfile
+import datetime as dt
+import os
+import shutil
 from pathlib import Path
 
 import polars as pl
 
-from polars_fs_ops import ls_dir, rm_file, uucp_file, uumv_file
+from polars_fs_ops import ls_dir, ls_dir_with_mod, rm_file, uucp_file, uumv_file
 
 
-pl.Config.set_fmt_str_lengths(150)
+pl.Config.set_fmt_str_lengths(120)
+pl.Config.set_tbl_rows(10)
+pl.Config.set_tbl_cols(10)
 
-# Create a temporary folder and 20 files for testing
-temp_dir = tempfile.mkdtemp()
-Path(temp_dir).mkdir(parents=True, exist_ok=True)
+root = Path("/tmp/polars_fs_ops_readme_demo")
+shutil.rmtree(root, ignore_errors=True)
 
-for i in range(20):
-    with open(Path(temp_dir) / f"{i}.txt", "w") as f:
-        f.write(f"This is test file {i}\n")
+incoming_dir = root / "incoming"
+backup_dir = root / "backup"
+curated_tabular_dir = root / "curated" / "tabular"
+
+for directory in [incoming_dir, backup_dir, curated_tabular_dir]:
+    directory.mkdir(parents=True, exist_ok=True)
+
+files = [
+    (
+        "report_2026-04.txt",
+        "monthly report\n",
+        dt.datetime(2026, 4, 1, 9, 15, tzinfo=dt.timezone.utc),
+    ),
+    (
+        "sales_2026-04.csv",
+        "day,total\n2026-04-01,120\n",
+        dt.datetime(2026, 4, 1, 10, 30, tzinfo=dt.timezone.utc),
+    ),
+    (
+        "notes.txt",
+        "call supplier\n",
+        dt.datetime(2026, 4, 2, 8, 0, tzinfo=dt.timezone.utc),
+    ),
+    (
+        "todo.log",
+        "refresh cache\n",
+        dt.datetime(2026, 4, 2, 11, 45, tzinfo=dt.timezone.utc),
+    ),
+]
+
+for name, content, modified_at in files:
+    path = incoming_dir / name
+    path.write_text(content)
+    timestamp = modified_at.timestamp()
+    os.utime(path, (timestamp, timestamp))
 ```
 
-### 2. List Directory Contents
+### 2. Build a file manifest with modified times
 
-We can read the directory contents straight into a DataFrame.
+This is where `ls_dir_with_mod` becomes useful: the directory listing is already shaped like a Polars expression, so we can immediately explode it, unnest it, and derive extra columns.
 
 ```python
-root_dir = str(temp_dir)
-
-df = (
-    pl.DataFrame({"source_folder": [root_dir]})
-    .with_columns(files=ls_dir(dir_path="source_folder"))
-    .select("files")
-    .explode("files")
-)
-
-print(df.head(3))
-```
-
-**Output:**
-```text
-shape: (3, 1)
-┌─────────────────────────┐
-│ files                   │
-│ ---                     │
-│ str                     │
-╞═════════════════════════╡
-│ /tmp/tmpxd79bk63/19.txt │
-│ /tmp/tmpxd79bk63/18.txt │
-│ /tmp/tmpxd79bk63/17.txt │
-└─────────────────────────┘
-```
-
-### 3. Copy (Backup) Files
-
-Now we can copy these files over to a new `backup` directory using `uucp_file`.
-
-```python
-backup_dir = Path(temp_dir) / "backup"
-backup_dir.mkdir(parents=True, exist_ok=True)
-
-df = df.with_columns(
-    bak=uucp_file(
-        from_path="files",
-        to_path=pl.lit(str(backup_dir)),
-        progress_bar=True,
-        dry_run=False,
+manifest = (
+    pl.DataFrame({"dir": [str(incoming_dir)]})
+    .select(ls_dir_with_mod("dir").alias("entries"))
+    .explode("entries")
+    .unnest("entries")
+    .with_columns(
+        name=pl.col("path").str.split("/").list.last(),
+        ext=pl.col("path").str.split(".").list.last(),
     )
+    .select("name", "ext", "path", "modified")
+    .sort("modified", descending=True)
 )
 
-print(df.head(3))
+print(manifest)
 ```
 
 **Output:**
 ```text
-shape: (3, 2)
-┌─────────────────────────┬──────┐
-│ files                   ┆ bak  │
-│ ---                     ┆ ---  │
-│ str                     ┆ bool │
-╞═════════════════════════╪══════╡
-│ /tmp/tmpxd79bk63/19.txt ┆ true │
-│ /tmp/tmpxd79bk63/18.txt ┆ true │
-│ /tmp/tmpxd79bk63/17.txt ┆ true │
-└─────────────────────────┴──────┘
+shape: (4, 4)
+┌────────────────────┬─────┬────────────────────────────────────────────────────────────┬─────────────────────┐
+│ name               ┆ ext ┆ path                                                       ┆ modified            │
+│ ---                ┆ --- ┆ ---                                                        ┆ ---                 │
+│ str                ┆ str ┆ str                                                        ┆ datetime[μs]        │
+╞════════════════════╪═════╪════════════════════════════════════════════════════════════╪═════════════════════╡
+│ todo.log           ┆ log ┆ /tmp/polars_fs_ops_readme_demo/incoming/todo.log           ┆ 2026-04-02 11:45:00 │
+│ notes.txt          ┆ txt ┆ /tmp/polars_fs_ops_readme_demo/incoming/notes.txt          ┆ 2026-04-02 08:00:00 │
+│ sales_2026-04.csv  ┆ csv ┆ /tmp/polars_fs_ops_readme_demo/incoming/sales_2026-04.csv  ┆ 2026-04-01 10:30:00 │
+│ report_2026-04.txt ┆ txt ┆ /tmp/polars_fs_ops_readme_demo/incoming/report_2026-04.txt ┆ 2026-04-01 09:15:00 │
+└────────────────────┴─────┴────────────────────────────────────────────────────────────┴─────────────────────┘
 ```
-### 4. Create a new folder and move files there
 
-If you want to move or copy data further, you can chain additional operations.
+### 3. Back up everything with `uucp_file`
+
+Once the file paths live in a DataFrame, filesystem actions become another expression in the pipeline.
 
 ```python
-new_folder = Path(temp_dir) / "raw_data"
-new_folder.mkdir(parents=True, exist_ok=True)
-
-df_moved = df.with_columns(
-    moved=uumv_file(
-        from_path="files",
-        to_dir=pl.lit(str(new_folder)),
-        progress_bar=True,
-        dry_run=False,
+backup_result = (
+    manifest.with_columns(
+        copied=uucp_file(
+            from_path="path",
+            to_path=pl.lit(str(backup_dir)),
+            progress_bar=False,
+            dry_run=False,
+        ),
     )
+    .select("name", "copied")
+    .sort("name")
 )
 
-print(df_moved.head(3))
+print(backup_result)
 ```
 
 **Output:**
 ```text
-shape: (3, 3)
-┌─────────────────────────┬──────┬───────┐
-│ files                   ┆ bak  ┆ moved │
-│ ---                     ┆ ---  ┆ ---   │
-│ str                     ┆ bool ┆ bool  │
-╞═════════════════════════╪══════╪═══════╡
-│ /tmp/tmpxd79bk63/19.txt ┆ true ┆ true  │
-│ /tmp/tmpxd79bk63/18.txt ┆ true ┆ true  │
-│ /tmp/tmpxd79bk63/17.txt ┆ true ┆ true  │
-└─────────────────────────┴──────┴───────┘
+shape: (4, 2)
+┌────────────────────┬────────┐
+│ name               ┆ copied │
+│ ---                ┆ ---    │
+│ str                ┆ bool   │
+╞════════════════════╪════════╡
+│ notes.txt          ┆ true   │
+│ report_2026-04.txt ┆ true   │
+│ sales_2026-04.csv  ┆ true   │
+│ todo.log           ┆ true   │
+└────────────────────┴────────┘
 ```
 
-### 5. Remove Original Files
+### 4. Move only the CSV data into a curated folder
 
-Finally, we can delete the source files using `rm_file`.
+Here the destination is still expression-driven. We stage the destination directory in one `with_columns`, then feed that derived column into `uumv_file` in the next step.
 
 ```python
-df = df.with_columns(
-    removed=rm_file(
-        file_path="files",
-        dry_run=False,
+move_result = (
+    manifest.filter(pl.col("ext") == "csv")
+    .with_columns(destination_dir=pl.lit(str(curated_tabular_dir)))
+    .with_columns(
+        moved=uumv_file(
+            from_path="path",
+            to_path="destination_dir",
+            preserve_extension=True,
+            progress_bar=False,
+            dry_run=False,
+        ),
     )
+    .select("name", "destination_dir", "moved")
 )
 
-print(df.head(3))
+print(move_result)
 ```
 
 **Output:**
 ```text
-shape: (3, 3)
-┌─────────────────────────┬──────┬─────────┐
-│ files                   ┆ bak  ┆ removed │
-│ ---                     ┆ ---  ┆ ---     │
-│ str                     ┆ bool ┆ bool    │
-╞═════════════════════════╪══════╪═════════╡
-│ /tmp/tmpxd79bk63/19.txt ┆ true ┆ true    │
-│ /tmp/tmpxd79bk63/18.txt ┆ true ┆ true    │
-│ /tmp/tmpxd79bk63/17.txt ┆ true ┆ true    │
-└─────────────────────────┴──────┴─────────┘
+shape: (1, 3)
+┌───────────────────┬────────────────────────────────────────────────┬───────┐
+│ name              ┆ destination_dir                                ┆ moved │
+│ ---               ┆ ---                                            ┆ ---   │
+│ str               ┆ str                                            ┆ bool  │
+╞═══════════════════╪════════════════════════════════════════════════╪═══════╡
+│ sales_2026-04.csv ┆ /tmp/polars_fs_ops_readme_demo/curated/tabular ┆ true  │
+└───────────────────┴────────────────────────────────────────────────┴───────┘
+```
+
+### 5. Remove log files from the incoming folder
+
+```python
+cleanup_result = (
+    manifest.filter(pl.col("ext") == "log")
+    .with_columns(removed=rm_file("path", dry_run=False))
+    .select("name", "removed")
+)
+
+print(cleanup_result)
+```
+
+**Output:**
+```text
+shape: (1, 2)
+┌──────────┬─────────┐
+│ name     ┆ removed │
+│ ---      ┆ ---     │
+│ str      ┆ bool    │
+╞══════════╪═════════╡
+│ todo.log ┆ true    │
+└──────────┴─────────┘
+```
+
+### 6. Inspect the resulting folders with `ls_dir`
+
+After the copy, move, and cleanup steps, a plain `ls_dir` is enough to verify the resulting state.
+
+```python
+incoming_now = (
+    pl.DataFrame({"dir": [str(incoming_dir)]})
+    .with_columns(entries=ls_dir("dir"))
+    .select("entries")
+    .explode("entries")
+    .with_columns(name=pl.col("entries").str.split("/").list.last())
+    .select("name")
+    .sort("name")
+)
+
+backup_now = (
+    pl.DataFrame({"dir": [str(backup_dir)]})
+    .with_columns(entries=ls_dir("dir"))
+    .select("entries")
+    .explode("entries")
+    .with_columns(name=pl.col("entries").str.split("/").list.last())
+    .select("name")
+    .sort("name")
+)
+
+curated_now = (
+    pl.DataFrame({"dir": [str(curated_tabular_dir)]})
+    .with_columns(entries=ls_dir("dir"))
+    .select("entries")
+    .explode("entries")
+    .with_columns(name=pl.col("entries").str.split("/").list.last())
+    .select("name")
+    .sort("name")
+)
+
+print(incoming_now)
+print(backup_now)
+print(curated_now)
+```
+
+**Output (`incoming_now`):**
+```text
+shape: (2, 1)
+┌────────────────────┐
+│ name               │
+│ ---                │
+│ str                │
+╞════════════════════╡
+│ notes.txt          │
+│ report_2026-04.txt │
+└────────────────────┘
+```
+
+**Output (`backup_now`):**
+```text
+shape: (4, 1)
+┌────────────────────┐
+│ name               │
+│ ---                │
+│ str                │
+╞════════════════════╡
+│ notes.txt          │
+│ report_2026-04.txt │
+│ sales_2026-04.csv  │
+│ todo.log           │
+└────────────────────┘
+```
+
+**Output (`curated_now`):**
+```text
+shape: (1, 1)
+┌───────────────────┐
+│ name              │
+│ ---               │
+│ str               │
+╞═══════════════════╡
+│ sales_2026-04.csv │
+└───────────────────┘
 ```
