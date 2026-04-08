@@ -122,6 +122,7 @@ The snippets below were executed to verify the shown outputs.
 import datetime as dt
 import os
 import shutil
+import tempfile
 from pathlib import Path
 
 import polars as pl
@@ -133,7 +134,7 @@ pl.Config.set_fmt_str_lengths(120)
 pl.Config.set_tbl_rows(10)
 pl.Config.set_tbl_cols(10)
 
-root = Path("/tmp/polars_fs_ops_readme_demo")
+root = Path(tempfile.mkdtemp(prefix="polars_fs_ops_demo_"))
 shutil.rmtree(root, ignore_errors=True)
 
 incoming_dir = root / "incoming"
@@ -184,7 +185,7 @@ manifest = (
     .explode("entries")
     .unnest("entries")
     .with_columns(
-        name=pl.col("path").str.split("/").list.last(),
+        name=pl.col("path").str.split(r"[/\\]").list.last(),
         ext=pl.col("path").str.split(".").list.last(),
     )
     .select("name", "ext", "path", "modified")

@@ -304,7 +304,8 @@ fn cpx_file(inputs: &[Series], kwargs: CpxKwargs) -> PolarsResult<Series> {
         broadcast_binary_elementwise(from, to, |from: Option<&str>, to: Option<&str>| {
             match (from, to) {
                 (Some(from), Some(to)) => {
-                    let valid = file_to_file(Some(from), Some(to));
+                    let valid =
+                        file_to_file(Some(from), Some(to)) || file_to_dir(Some(from), Some(to));
                     if !dry_run && valid {
                         copy(Path::new(from), Path::new(to), &options).is_ok()
                     } else {

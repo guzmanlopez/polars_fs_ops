@@ -28,8 +28,7 @@ def cp_file(from_path: IntoExprColumn, to_path: IntoExprColumn, dry_run: bool = 
 
     Args:
         from_path: Column or expression containing source file paths.
-        to_path: Column or expression containing destination file paths.
-            Existing directories are rejected.
+        to_path: Column or expression containing destination file paths or existing directories.
         dry_run: If True, only simulate the copy without actually performing it.
 
     Returns:
@@ -143,8 +142,7 @@ def uucp_file(
 
     Args:
         from_path: Column or expression containing source file paths.
-        to_path: Column or expression containing destination file paths or existing
-            directories.
+        to_path: Column or expression containing destination file paths.
         progress_bar: Whether to display a progress bar during copy.
         dry_run: If True, only simulate the copy without actually performing it.
 

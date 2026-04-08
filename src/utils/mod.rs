@@ -11,7 +11,11 @@ pub fn file_to_file(from_path: Option<&str>, to_path: Option<&str>) -> bool {
     match (from_path, to_path) {
         (Some(from), Some(to)) => {
             let from_is_file = Path::new(from).is_file();
-            from_is_file && valid_parent_dir(Some(to)) && !same_path(Some(from), Some(to))
+            let to_is_not_dir = !Path::new(to).is_dir();
+            from_is_file
+                && to_is_not_dir
+                && valid_parent_dir(Some(to))
+                && !same_path(Some(from), Some(to))
         },
         _ => false,
     }

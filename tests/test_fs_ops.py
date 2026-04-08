@@ -44,7 +44,7 @@ def _create_file(path: str, content: str = "hello") -> str:
     return path
 
 
-# ── file_exists ──────────────────────────────────────────────────────────────
+# ── checks ─────────────────────────────────────────────────────────────────
 
 
 class TestFileExists:
@@ -107,7 +107,7 @@ class TestCheckValidParentDir:
         assert result["fp"].to_list() == [None]
 
 
-# ── cp_file ──────────────────────────────────────────────────────────────────
+# ── cp_file ────────────────────────────────────────────────────────────────
 
 
 class TestCpFile:
@@ -118,6 +118,9 @@ class TestCpFile:
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
         dst = os.path.join(tmp_dir, "dst.txt")
         df = pl.DataFrame({"src": [src], "dst": [dst]})
+        result_dr = df.select(cp_file("src", "dst", dry_run=True))
+        assert result_dr["src"].to_list() == [True]
+        assert not os.path.exists(dst)
         result = df.select(cp_file("src", "dst"))
         assert result["src"].to_list() == [True]
         assert os.path.exists(dst)
@@ -129,6 +132,9 @@ class TestCpFile:
         os.makedirs(dst_dir)
         df = pl.DataFrame({"src": [src], "dst": [dst_dir]})
         # cp_file uses check_file_to_file, which returns False for file-to-dir
+        result_dr = df.select(cp_file("src", "dst", dry_run=True))
+        assert result_dr["src"].to_list() == [False]
+        assert not os.path.exists(os.path.join(dst_dir, "src.txt"))
         result = df.select(cp_file("src", "dst"))
         assert result["src"].to_list() == [False]
 
@@ -137,6 +143,9 @@ class TestCpFile:
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
         dst = os.path.join(tmp_dir, "dst.txt")
         df = pl.DataFrame({"src": [src], "dst": [dst]})
+        result_dr = df.select(cp_file("src", "dst", dry_run=True))
+        assert result_dr["src"].to_list() == [True]
+        assert not os.path.exists(dst)
         result = df.select(cp_file("src", "dst"))
         assert result["src"].to_list() == [True]
         assert os.path.exists(dst)
@@ -149,6 +158,8 @@ class TestCpFile:
         """Return False for a missing source path."""
         dst = os.path.join(tmp_dir, "dst.txt")
         df = pl.DataFrame({"src": ["/tmp/__no_such_file__"], "dst": [dst]})
+        result_dr = df.select(cp_file("src", "dst", dry_run=True))
+        assert result_dr["src"].to_list() == [False]
         result = df.select(cp_file("src", "dst"))
         assert result["src"].to_list() == [False]
 
@@ -159,16 +170,26 @@ class TestCpFile:
         dst1 = os.path.join(tmp_dir, "a_copy.txt")
         dst2 = os.path.join(tmp_dir, "b_copy.txt")
         df = pl.DataFrame({"src": [src1, src2], "dst": [dst1, dst2]})
+        result_dr = df.select(cp_file("src", "dst", dry_run=True))
+        assert result_dr["src"].to_list() == [True, True]
+        assert not os.path.exists(dst1)
+        assert not os.path.exists(dst2)
         result = df.select(cp_file("src", "dst"))
         assert result["src"].to_list() == [True, True]
+        assert os.path.exists(dst1)
+        assert os.path.exists(dst2)
 
     def test_copy_broadcast_single_dest(self, tmp_dir: str):
         """Support broadcasting a single destination expression."""
         src1 = _create_file(os.path.join(tmp_dir, "a.txt"), "aaa")
         dst = os.path.join(tmp_dir, "copy.txt")
         df = pl.DataFrame({"src": [src1]})
+        result_dr = df.select(cp_file("src", pl.lit(dst), dry_run=True))
+        assert result_dr["src"].to_list() == [True]
+        assert not os.path.exists(dst)
         result = df.select(cp_file("src", pl.lit(dst)))
         assert result["src"].to_list() == [True]
+        assert os.path.exists(dst)
 
     def test_copy_invalid_paths(self, tmp_dir: str):
         """Return False for invalid source inputs."""
@@ -178,6 +199,8 @@ class TestCpFile:
             {"src": ["", None, "::invalid::"], "dst": [dst, dst, dst]},
             schema={"src": pl.String, "dst": pl.String},
         )
+        result_dr = df.select(cp_file("src", "dst", dry_run=True))
+        assert result_dr["src"].to_list() == [False, False, False]
         result = df.select(cp_file("src", "dst"))
         assert result["src"].to_list() == [False, False, False]
 
@@ -186,6 +209,9 @@ class TestCpFile:
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
         dst = os.path.join(tmp_dir, "dst.csv")
         df = pl.DataFrame({"src": [src], "dst": [dst]})
+        result_dr = df.select(cp_file("src", "dst", dry_run=True))
+        assert result_dr["src"].to_list() == [True]
+        assert not os.path.exists(dst)
         result = df.select(cp_file("src", "dst"))
         assert result["src"].to_list() == [True]
         assert os.path.exists(dst)
@@ -195,6 +221,9 @@ class TestCpFile:
         src = _create_file(os.path.join(tmp_dir, "src"), "data")
         dst = os.path.join(tmp_dir, "dst")
         df = pl.DataFrame({"src": [src], "dst": [dst]})
+        result_dr = df.select(cp_file("src", "dst", dry_run=True))
+        assert result_dr["src"].to_list() == [True]
+        assert not os.path.exists(dst)
         result = df.select(cp_file("src", "dst"))
         assert result["src"].to_list() == [True]
         assert os.path.exists(dst)
@@ -203,32 +232,13 @@ class TestCpFile:
         """Handle copying a file to the same path."""
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
         df = pl.DataFrame({"src": [src], "dst": [src]})
+        result_dr = df.select(cp_file("src", "dst", dry_run=True))
+        assert result_dr["src"].to_list() == [False]
         result = df.select(cp_file("src", "dst"))
         assert result["src"].to_list() == [False]
         assert os.path.exists(src)
         with open(src) as f:
             assert f.read() == "data"
-
-    def test_copy_dry_run_success(self, tmp_dir: str):
-        """Report success without creating the destination file."""
-        src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
-        dst = os.path.join(tmp_dir, "dst.txt")
-        df = pl.DataFrame({"src": [src], "dst": [dst]})
-        result = df.select(cp_file("src", "dst", dry_run=True))
-        assert result["src"].to_list() == [True]
-        assert not os.path.exists(dst)
-        # source still exists after dry-run copy
-        assert os.path.exists(src)
-
-    def test_copy_dry_run_invalid_paths(self, tmp_dir: str):
-        """Return False for invalid inputs during dry runs."""
-        dst = os.path.join(tmp_dir, "dst.txt")
-        df = pl.DataFrame(
-            {"src": ["", None, "::invalid::"], "dst": [dst, dst, dst]},
-            schema={"src": pl.String, "dst": pl.String},
-        )
-        result = df.select(cp_file("src", "dst", dry_run=True))
-        assert result["src"].to_list() == [False, False, False]
 
 
 # ── mv_file ──────────────────────────────────────────────────────────────────
@@ -242,6 +252,10 @@ class TestMvFile:
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
         dst = os.path.join(tmp_dir, "dst.txt")
         df = pl.DataFrame({"src": [src], "dst": [dst]})
+        result_dr = df.select(mv_file("src", "dst", dry_run=True))
+        assert result_dr["src"].to_list() == [True]
+        assert os.path.exists(src)
+        assert not os.path.exists(dst)
         result = df.select(mv_file("src", "dst"))
         assert result["src"].to_list() == [True]
         assert os.path.exists(dst)
@@ -252,7 +266,9 @@ class TestMvFile:
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
         dst = os.path.join(tmp_dir, "dst.csv")
         df = pl.DataFrame({"src": [src], "dst": [dst]})
-        result = df.select(mv_file("src", "dst", True))
+        result_dr = df.select(mv_file("src", "dst", preserve_extension=True, dry_run=True))
+        assert result_dr["src"].to_list() == [False]
+        result = df.select(mv_file("src", "dst", preserve_extension=True))
         assert result["src"].to_list() == [False]
         assert os.path.exists(src)
         assert not os.path.exists(dst)
@@ -264,6 +280,10 @@ class TestMvFile:
         moved_path = os.path.join(dst_dir, "src.txt")
         os.makedirs(dst_dir)
         df = pl.DataFrame({"src": [src], "dst": [dst_dir]})
+        result_dr = df.select(mv_file("src", "dst", dry_run=True))
+        assert result_dr["src"].to_list() == [True]
+        assert os.path.exists(src)
+        assert not os.path.exists(moved_path)
         result = df.select(mv_file("src", "dst"))
         assert result["src"].to_list() == [True]
         assert not os.path.exists(src)
@@ -276,6 +296,10 @@ class TestMvFile:
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
         dst = os.path.join(tmp_dir, "dst.txt")
         df = pl.DataFrame({"src": [src], "dst": [dst]})
+        result_dr = df.select(mv_file("src", "dst", dry_run=True))
+        assert result_dr["src"].to_list() == [True]
+        assert os.path.exists(src)
+        assert not os.path.exists(dst)
         result = df.select(mv_file("src", "dst"))
         assert result["src"].to_list() == [True]
         assert not os.path.exists(src)
@@ -287,6 +311,8 @@ class TestMvFile:
         """Return False for a missing source path."""
         dst = os.path.join(tmp_dir, "dst.txt")
         df = pl.DataFrame({"src": ["/tmp/__no_such_file__"], "dst": [dst]})
+        result_dr = df.select(mv_file("src", "dst", dry_run=True))
+        assert result_dr["src"].to_list() == [False]
         result = df.select(mv_file("src", "dst"))
         assert result["src"].to_list() == [False]
 
@@ -297,6 +323,8 @@ class TestMvFile:
             {"src": ["", None, "::invalid::"], "dst": [dst, dst, dst]},
             schema={"src": pl.String, "dst": pl.String},
         )
+        result_dr = df.select(mv_file("src", "dst", dry_run=True))
+        assert result_dr["src"].to_list() == [False, False, False]
         result = df.select(mv_file("src", "dst"))
         assert result["src"].to_list() == [False, False, False]
 
@@ -304,31 +332,14 @@ class TestMvFile:
         """Handle moving a file to the same path."""
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
         df = pl.DataFrame({"src": [src], "dst": [src]})
+        result_dr = df.select(mv_file("src", "dst", dry_run=True))
+        assert result_dr["src"].to_list() == [False]
+        assert os.path.exists(src)
         result = df.select(mv_file("src", "dst"))
         assert result["src"].to_list() == [False]
         assert os.path.exists(src)
         with open(src) as f:
             assert f.read() == "data"
-
-    def test_move_dry_run_success(self, tmp_dir: str):
-        """Report a successful move without changing the filesystem."""
-        src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
-        dst = os.path.join(tmp_dir, "dst.txt")
-        df = pl.DataFrame({"src": [src], "dst": [dst]})
-        result = df.select(mv_file("src", "dst", dry_run=True))
-        assert result["src"].to_list() == [True]
-        assert os.path.exists(src)
-        assert not os.path.exists(dst)
-
-    def test_move_dry_run_invalid_paths(self, tmp_dir: str):
-        """Return False for invalid inputs during move dry runs."""
-        dst = os.path.join(tmp_dir, "dst.txt")
-        df = pl.DataFrame(
-            {"src": ["", None, "::invalid::"], "dst": [dst, dst, dst]},
-            schema={"src": pl.String, "dst": pl.String},
-        )
-        result = df.select(mv_file("src", "dst", dry_run=True))
-        assert result["src"].to_list() == [False, False, False]
 
 
 # ── rm_file ──────────────────────────────────────────────────────────────────
@@ -341,6 +352,9 @@ class TestRmFile:
         """Remove an existing file."""
         path = _create_file(os.path.join(tmp_dir, "a.txt"))
         df = pl.DataFrame({"fp": [path]})
+        result_dr = df.select(rm_file("fp", dry_run=True))
+        assert result_dr["fp"].to_list() == [True]
+        assert os.path.exists(path)
         result = df.select(rm_file("fp"))
         assert result["fp"].to_list() == [True]
         assert not os.path.exists(path)
@@ -348,6 +362,8 @@ class TestRmFile:
     def test_remove_nonexistent(self):
         """Return False for a missing file."""
         df = pl.DataFrame({"fp": ["/tmp/__no_such_file__"]})
+        result_dr = df.select(rm_file("fp", dry_run=True))
+        assert result_dr["fp"].to_list() == [False]
         result = df.select(rm_file("fp"))
         assert result["fp"].to_list() == [False]
 
@@ -356,6 +372,10 @@ class TestRmFile:
         p1 = _create_file(os.path.join(tmp_dir, "a.txt"))
         p2 = _create_file(os.path.join(tmp_dir, "b.txt"))
         df = pl.DataFrame({"fp": [p1, p2]})
+        result_dr = df.select(rm_file("fp", dry_run=True))
+        assert result_dr["fp"].to_list() == [True, True]
+        assert os.path.exists(p1)
+        assert os.path.exists(p2)
         result = df.select(rm_file("fp"))
         assert result["fp"].to_list() == [True, True]
         assert not os.path.exists(p1)
@@ -364,22 +384,9 @@ class TestRmFile:
     def test_remove_invalid_paths(self, tmp_dir: str):
         """Handle invalid and null removal inputs."""
         df = pl.DataFrame({"fp": ["", None, "::invalid::"]}, schema={"fp": pl.String})
+        result_dr = df.select(rm_file("fp", dry_run=True))
+        assert result_dr["fp"].to_list() == [False, None, False]
         result = df.select(rm_file("fp"))
-        # Accept None for None input if that's the actual behavior
-        assert result["fp"].to_list() == [False, None, False]
-
-    def test_remove_dry_run_success(self, tmp_dir: str):
-        """Report success without deleting the file."""
-        path = _create_file(os.path.join(tmp_dir, "a.txt"))
-        df = pl.DataFrame({"fp": [path]})
-        result = df.select(rm_file("fp", dry_run=True))
-        assert result["fp"].to_list() == [True]
-        assert os.path.exists(path)
-
-    def test_remove_dry_run_invalid_paths(self, tmp_dir: str):
-        """Handle invalid and null inputs during dry runs."""
-        df = pl.DataFrame({"fp": ["", None, "::invalid::"]}, schema={"fp": pl.String})
-        result = df.select(rm_file("fp", dry_run=True))
         assert result["fp"].to_list() == [False, None, False]
 
 
@@ -488,6 +495,9 @@ class TestUucpFile:
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
         dst = os.path.join(tmp_dir, "dst.txt")
         df = pl.DataFrame({"src": [src], "dst": [dst]})
+        result_dr = df.select(uucp_file("src", "dst", False, True))
+        assert result_dr["src"].to_list() == [True]
+        assert not os.path.exists(dst)
         result = df.select(uucp_file("src", "dst", False, False))
         assert result["src"].to_list() == [True]
         assert os.path.exists(dst)
@@ -499,6 +509,9 @@ class TestUucpFile:
         os.makedirs(dst_dir)
         df = pl.DataFrame({"src": [src], "dst": [dst_dir]})
         # uucp_file supports check_file_to_file || check_file_to_dir
+        result_dr = df.select(uucp_file("src", "dst", False, True))
+        assert result_dr["src"].to_list() == [True]
+        assert not os.path.exists(os.path.join(dst_dir, "src.txt"))
         result = df.select(uucp_file("src", "dst", False, False))
         assert result["src"].to_list() == [True]
         assert os.path.exists(os.path.join(dst_dir, "src.txt"))
@@ -509,6 +522,9 @@ class TestUucpFile:
         dst_dir = os.path.join(tmp_dir, "dest")
         os.makedirs(dst_dir)
         df = pl.DataFrame({"src": [src], "dst": [dst_dir]})
+        result_dr = df.select(uucp_file("src", "dst", False, True))
+        assert result_dr["src"].to_list() == [True]
+        assert not os.path.exists(os.path.join(dst_dir, "src.txt"))
         result = df.select(uucp_file("src", "dst", False, False))
         assert result["src"].to_list() == [True]
         assert os.path.exists(os.path.join(dst_dir, "src.txt"))
@@ -518,6 +534,8 @@ class TestUucpFile:
         dst_dir = os.path.join(tmp_dir, "dest")
         os.makedirs(dst_dir)
         df = pl.DataFrame({"src": ["/tmp/__no_such_file__"], "dst": [dst_dir]})
+        result_dr = df.select(uucp_file("src", "dst", False, True))
+        assert result_dr["src"].to_list() == [False]
         result = df.select(uucp_file("src", "dst", False, False))
         assert result["src"].to_list() == [False]
 
@@ -526,6 +544,9 @@ class TestUucpFile:
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
         dst = os.path.join(tmp_dir, "dst.csv")
         df = pl.DataFrame({"src": [src], "dst": [dst]})
+        result_dr = df.select(uucp_file("src", "dst", False, True))
+        assert result_dr["src"].to_list() == [True]
+        assert not os.path.exists(dst)
         result = df.select(uucp_file("src", "dst"))
         assert result["src"].to_list() == [True]
         assert os.path.exists(dst)
@@ -534,21 +555,13 @@ class TestUucpFile:
         """Handle copying a file to the same path."""
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
         df = pl.DataFrame({"src": [src], "dst": [src]})
+        result_dr = df.select(uucp_file("src", "dst", False, True))
+        assert result_dr["src"].to_list() == [False]
         result = df.select(uucp_file("src", "dst", False, False))
         assert result["src"].to_list() == [False]
         assert os.path.exists(src)
         with open(src) as f:
             assert f.read() == "data"
-
-    def test_copy_dry_run_success(self, tmp_dir: str):
-        """Report success without creating the copied file."""
-        src = _create_file(os.path.join(tmp_dir, "src.txt"), "uucp data")
-        dst_dir = os.path.join(tmp_dir, "dest")
-        os.makedirs(dst_dir)
-        df = pl.DataFrame({"src": [src], "dst": [dst_dir]})
-        result = df.select(uucp_file("src", "dst", False, True))
-        assert result["src"].to_list() == [True]
-        assert not os.path.exists(os.path.join(dst_dir, "src.txt"))
 
 
 # ── uumv_file ────────────────────────────────────────────────────────────────
@@ -562,6 +575,10 @@ class TestUumvFile:
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
         dst = os.path.join(tmp_dir, "dst.txt")
         df = pl.DataFrame({"src": [src], "dst": [dst]})
+        result_dr = df.select(uumv_file("src", "dst", True, progress_bar=False, dry_run=True))
+        assert result_dr["src"].to_list() == [True]
+        assert os.path.exists(src)
+        assert not os.path.exists(dst)
         result = df.select(uumv_file("src", "dst", True, progress_bar=False, dry_run=False))
         assert result["src"].to_list() == [True]
         assert os.path.exists(dst)
@@ -572,7 +589,15 @@ class TestUumvFile:
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
         dst = os.path.join(tmp_dir, "dst.csv")
         df = pl.DataFrame({"src": [src], "dst": [dst]})
-        result = df.select(uumv_file("src", "dst", True, progress_bar=False, dry_run=False))
+        result_dr = df.select(
+            uumv_file("src", "dst", preserve_extension=True, progress_bar=False, dry_run=True)
+        )
+        assert result_dr["src"].to_list() == [False]
+        assert os.path.exists(src)
+        assert not os.path.exists(dst)
+        result = df.select(
+            uumv_file("src", "dst", preserve_extension=True, progress_bar=False, dry_run=False)
+        )
         assert result["src"].to_list() == [False]
         assert os.path.exists(src)
         assert not os.path.exists(dst)
@@ -584,6 +609,10 @@ class TestUumvFile:
         os.makedirs(dst_dir)
         df = pl.DataFrame({"src": [src], "dst": [dst_dir]})
         moved_path = os.path.join(dst_dir, "src.txt")
+        result_dr = df.select(uumv_file("src", "dst", True, progress_bar=False, dry_run=True))
+        assert result_dr["src"].to_list() == [True]
+        assert os.path.exists(src)
+        assert not os.path.exists(moved_path)
         result = df.select(uumv_file("src", "dst", True, progress_bar=False, dry_run=False))
         assert result["src"].to_list() == [True]
         assert not os.path.exists(src)
@@ -596,6 +625,10 @@ class TestUumvFile:
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "uumv data")
         dst = os.path.join(tmp_dir, "dst.txt")
         df = pl.DataFrame({"src": [src], "dst": [dst]})
+        result_dr = df.select(uumv_file("src", "dst", True, progress_bar=False, dry_run=True))
+        assert result_dr["src"].to_list() == [True]
+        assert os.path.exists(src)
+        assert not os.path.exists(dst)
         result = df.select(uumv_file("src", "dst", True, progress_bar=False, dry_run=False))
         assert result["src"].to_list() == [True]
         assert not os.path.exists(src)
@@ -605,6 +638,8 @@ class TestUumvFile:
         """Return False for a missing source path."""
         dst = os.path.join(tmp_dir, "dst.txt")
         df = pl.DataFrame({"src": ["/tmp/__no_such_file__"], "dst": [dst]})
+        result_dr = df.select(uumv_file("src", "dst", True, progress_bar=False, dry_run=True))
+        assert result_dr["src"].to_list() == [False]
         result = df.select(uumv_file("src", "dst", True, progress_bar=False, dry_run=False))
         assert result["src"].to_list() == [False]
 
@@ -612,21 +647,14 @@ class TestUumvFile:
         """Handle moving a file to the same path."""
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "uumv data")
         df = pl.DataFrame({"src": [src], "dst": [src]})
+        result_dr = df.select(uumv_file("src", "dst", True, progress_bar=False, dry_run=True))
+        assert result_dr["src"].to_list() == [False]
+        assert os.path.exists(src)
         result = df.select(uumv_file("src", "dst", True, progress_bar=False, dry_run=False))
         assert result["src"].to_list() == [False]
         assert os.path.exists(src)
         with open(src) as f:
             assert f.read() == "uumv data"
-
-    def test_move_dry_run_success(self, tmp_dir: str):
-        """Report success without moving the file."""
-        src = _create_file(os.path.join(tmp_dir, "src.txt"), "uumv data")
-        dst = os.path.join(tmp_dir, "dst.txt")
-        df = pl.DataFrame({"src": [src], "dst": [dst]})
-        result = df.select(uumv_file("src", "dst", True, progress_bar=False, dry_run=True))
-        assert result["src"].to_list() == [True]
-        assert os.path.exists(src)
-        assert not os.path.exists(dst)
 
 
 # ── cpx_file ─────────────────────────────────────────────────────────────────
@@ -641,6 +669,9 @@ class TestCpxFile:
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
         dst = os.path.join(tmp_dir, "dst.txt")
         df = pl.DataFrame({"src": [src], "dst": [dst]})
+        result_dr = df.select(cpx_file("src", "dst", 0, dry_run=True))
+        assert result_dr["src"].to_list() == [True]
+        assert not os.path.exists(dst)
         result = df.select(cpx_file("src", "dst", 0))
         assert result["src"].to_list() == [True]
         assert os.path.exists(dst)
@@ -653,6 +684,9 @@ class TestCpxFile:
         os.makedirs(dst_dir)
         df = pl.DataFrame({"src": [src], "dst": [dst_dir]})
         # cpx_file uses check_file_to_file, which returns True for file-to-dir
+        result_dr = df.select(cpx_file("src", "dst", 0, dry_run=True))
+        assert result_dr["src"].to_list() == [True]
+        assert not os.path.exists(os.path.join(dst_dir, "src.txt"))
         result = df.select(cpx_file("src", "dst", 0))
         assert result["src"].to_list() == [True]
 
@@ -662,6 +696,9 @@ class TestCpxFile:
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "cpx data")
         dst = os.path.join(tmp_dir, "dst.txt")
         df = pl.DataFrame({"src": [src], "dst": [dst]})
+        result_dr = df.select(cpx_file("src", "dst", 0, dry_run=True))
+        assert result_dr["src"].to_list() == [True]
+        assert not os.path.exists(dst)
         result = df.select(cpx_file("src", "dst", 0))
         assert result["src"].to_list() == [True]
         assert os.path.exists(dst)
@@ -673,6 +710,8 @@ class TestCpxFile:
         """Return False for a missing source path."""
         dst = os.path.join(tmp_dir, "dst.txt")
         df = pl.DataFrame({"src": ["/tmp/__no_such_file__"], "dst": [dst]})
+        result_dr = df.select(cpx_file("src", "dst", 0, dry_run=True))
+        assert result_dr["src"].to_list() == [False]
         result = df.select(cpx_file("src", "dst", 0))
         assert result["src"].to_list() == [False]
 
@@ -682,6 +721,9 @@ class TestCpxFile:
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "data")
         dst = os.path.join(tmp_dir, "dst.csv")
         df = pl.DataFrame({"src": [src], "dst": [dst]})
+        result_dr = df.select(cpx_file("src", "dst", 0, dry_run=True))
+        assert result_dr["src"].to_list() == [True]
+        assert not os.path.exists(dst)
         result = df.select(cpx_file("src", "dst"))
         assert result["src"].to_list() == [True]
         assert os.path.exists(dst)
@@ -691,23 +733,17 @@ class TestCpxFile:
         """Handle copying a file to the same path."""
         src = _create_file(os.path.join(tmp_dir, "src.txt"), "cpx data")
         df = pl.DataFrame({"src": [src], "dst": [src]})
+        result_dr = df.select(cpx_file("src", "dst", 0, dry_run=True))
+        assert result_dr["src"].to_list() == [False]
         result = df.select(cpx_file("src", "dst", 0))
         assert result["src"].to_list() == [False]
         assert os.path.exists(src)
         with open(src) as f:
             assert f.read() == "cpx data"
 
-    @pytest.mark.skipif(sys.platform != "linux", reason="cpx_file is only supported on Linux")
-    def test_copy_dry_run_success(self, tmp_dir: str):
-        """Report success without creating the destination file."""
-        src = _create_file(os.path.join(tmp_dir, "src.txt"), "cpx data")
-        dst = os.path.join(tmp_dir, "dst.txt")
-        df = pl.DataFrame({"src": [src], "dst": [dst]})
-        result = df.select(cpx_file("src", "dst", 0, True))
-        assert result["src"].to_list() == [True]
-        assert not os.path.exists(dst)
-
-    def test_cpx_file_not_supported(self, tmp_dir: str):
+    def test_cpx_file_not_supported(
+        self,
+    ):
         """Raise on unsupported platforms."""
         from unittest.mock import patch
 
