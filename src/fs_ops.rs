@@ -1,17 +1,19 @@
 #![allow(clippy::unused_unit)]
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
 
 #[cfg(target_os = "linux")]
 use cpx::cli::args::CopyOptions;
 #[cfg(target_os = "linux")]
 use cpx::core::copy::copy;
+use polars::chunked_array::builder::AnonymousOwnedListBuilder;
 use polars::prelude::arity::broadcast_binary_elementwise;
 use polars::prelude::*;
 use pyo3_polars::derive::polars_expr;
 use serde::Deserialize;
 
-use crate::utils::{check_file_to_dir, check_file_to_file, check_valid_mv};
+use crate::utils::{file_to_dir, file_to_file, same_path, valid_mv};
 
 //  Using std::fs for operations
 #[derive(Deserialize)]
@@ -28,7 +30,7 @@ fn cp_file(inputs: &[Series], kwargs: CpFileKwargs) -> PolarsResult<Series> {
         broadcast_binary_elementwise(from, to, |from: Option<&str>, to: Option<&str>| {
             match (from, to) {
                 (Some(from), Some(to)) => {
-                    let valid = check_file_to_file(Some(from), Some(to));
+                    let valid = file_to_file(Some(from), Some(to));
                     if !dry_run && valid {
                         std::fs::copy(from, to).is_ok()
                     } else {
@@ -47,6 +49,18 @@ struct MvFileKwargs {
     preserve_extension: bool,
 }
 
+fn resolve_mv_destination(from: &str, to: &str) -> String {
+    let from_path = Path::new(from);
+    let to_path = Path::new(to);
+
+    if from_path.is_file() && to_path.is_dir() {
+        if let Some(file_name) = from_path.file_name() {
+            return to_path.join(file_name).to_string_lossy().to_string();
+        }
+    }
+    to.to_string()
+}
+
 #[polars_expr(output_type=Boolean)]
 fn mv_file(inputs: &[Series], kwargs: MvFileKwargs) -> PolarsResult<Series> {
     let from: &StringChunked = inputs[0].str()?;
@@ -57,9 +71,12 @@ fn mv_file(inputs: &[Series], kwargs: MvFileKwargs) -> PolarsResult<Series> {
         broadcast_binary_elementwise(from, to, |from: Option<&str>, to: Option<&str>| {
             match (from, to) {
                 (Some(from), Some(to)) => {
-                    let valid = check_valid_mv(Some(from), Some(to), preserve_extension);
+                    let to = resolve_mv_destination(from, to);
+                    let valid = valid_mv(Some(from), Some(&to), preserve_extension)
+                        && !same_path(Some(from), Some(&to));
+
                     if !dry_run && valid {
-                        std::fs::rename(from, to).is_ok()
+                        std::fs::rename(from, &to).is_ok()
                     } else {
                         valid
                     }
@@ -122,7 +139,83 @@ fn ls_dir(inputs: &[Series]) -> PolarsResult<Series> {
     Ok(out.into_series())
 }
 
+fn ls_dir_with_mod_output(_: &[Field]) -> PolarsResult<Field> {
+    let struct_dtype = DataType::Struct(vec![
+        Field::new("path".into(), DataType::String),
+        Field::new(
+            "modified".into(),
+            DataType::Datetime(TimeUnit::Microseconds, None),
+        ),
+    ]);
+    Ok(Field::new(
+        "ls_dir_with_mod".into(),
+        DataType::List(Box::new(struct_dtype)),
+    ))
+}
+
+#[polars_expr(output_type_func=ls_dir_with_mod_output)]
+fn ls_dir_with_mod(inputs: &[Series]) -> PolarsResult<Series> {
+    let ca: &StringChunked = inputs[0].str()?;
+
+    let struct_dtype = DataType::Struct(vec![
+        Field::new("path".into(), DataType::String),
+        Field::new(
+            "modified".into(),
+            DataType::Datetime(TimeUnit::Microseconds, None),
+        ),
+    ]);
+    let mut builder =
+        AnonymousOwnedListBuilder::new("ls_dir_with_mod".into(), ca.len(), Some(struct_dtype));
+
+    for opt_val in ca.into_iter() {
+        match opt_val {
+            Some(dir_path) => match std::fs::read_dir(dir_path) {
+                Ok(entries) => {
+                    let mut paths: Vec<String> = Vec::new();
+                    let mut modified_us: Vec<Option<i64>> = Vec::new();
+
+                    for entry in entries.filter_map(Result::ok) {
+                        paths.push(entry.path().to_string_lossy().to_string());
+                        let modified = entry
+                            .metadata()
+                            .ok()
+                            .and_then(|m| m.modified().ok())
+                            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                            .map(|d| d.as_micros() as i64);
+                        modified_us.push(modified);
+                    }
+
+                    let path_series = StringChunked::from_iter_values(
+                        "path".into(),
+                        paths.iter().map(|s| s.as_str()),
+                    )
+                    .into_series();
+
+                    let modified_series = Int64Chunked::new("modified".into(), &modified_us)
+                        .into_datetime(TimeUnit::Microseconds, None)
+                        .into_series();
+
+                    let struct_series = StructChunked::from_series(
+                        PlSmallStr::EMPTY,
+                        path_series.len(),
+                        [&path_series, &modified_series].into_iter(),
+                    )?
+                    .into_series();
+
+                    builder.append_series(&struct_series)?;
+                },
+                Err(_) => builder.append_null(),
+            },
+            None => builder.append_null(),
+        }
+    }
+
+    let out = builder.finish();
+    Ok(out.into_series())
+}
+
 // Using uutils for operations: Cross-platform Rust rewrite of the GNU coreutils
+
 #[derive(Deserialize)]
 struct UuCpKwargs {
     progress_bar: bool,
@@ -142,8 +235,8 @@ fn uucp_file(inputs: &[Series], kwargs: UuCpKwargs) -> PolarsResult<Series> {
         broadcast_binary_elementwise(from, to, |from: Option<&str>, to: Option<&str>| {
             match (from, to) {
                 (Some(from), Some(to)) => {
-                    let valid = check_file_to_file(Some(from), Some(to))
-                        || check_file_to_dir(Some(from), Some(to));
+                    let valid =
+                        file_to_file(Some(from), Some(to)) || file_to_dir(Some(from), Some(to));
                     if !dry_run && valid {
                         uu_cp::copy(&[PathBuf::from(from)], Path::new(to), &options).is_ok()
                     } else {
@@ -177,7 +270,7 @@ fn uumv_file(inputs: &[Series], kwargs: UuMvKwargs) -> PolarsResult<Series> {
         broadcast_binary_elementwise(from, to, |from: Option<&str>, to: Option<&str>| {
             match (from, to) {
                 (Some(from), Some(to)) => {
-                    let valid = check_valid_mv(Some(from), Some(to), preserve_extension);
+                    let valid = valid_mv(Some(from), Some(to), preserve_extension);
                     if !dry_run && valid {
                         uu_mv::mv(&[OsString::from(from), OsString::from(to)], &options).is_ok()
                     } else {
@@ -211,7 +304,8 @@ fn cpx_file(inputs: &[Series], kwargs: CpxKwargs) -> PolarsResult<Series> {
         broadcast_binary_elementwise(from, to, |from: Option<&str>, to: Option<&str>| {
             match (from, to) {
                 (Some(from), Some(to)) => {
-                    let valid = check_file_to_file(Some(from), Some(to));
+                    let valid =
+                        file_to_file(Some(from), Some(to)) || file_to_dir(Some(from), Some(to));
                     if !dry_run && valid {
                         copy(Path::new(from), Path::new(to), &options).is_ok()
                     } else {
