@@ -1,5 +1,5 @@
 [build-system]
-requires = ["maturin>=1.0,<2.0", "polars>=1.3.0"]
+requires = ["maturin>=1.13.1,<2.0", "polars>=1.3.0"]
 build-backend = "maturin"
 
 [project]
@@ -17,7 +17,7 @@ dependencies = [
     "complexipy>=5.2.0",
     "detect-secrets>=1.5.0",
     "docstr-coverage>=2.3.2",
-    "maturin>=1.12.6",
+    "maturin>=1.13.1",
     "mypy>=1.14.1",
     "polars>=1.8.2",
     "pre-commit>=3.5.0",
