@@ -7,8 +7,19 @@ name: CI
 
 on:
   push:
+    branches:
+      - main
     tags:
       - '*'
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
   workflow_dispatch:
 
 permissions:
