@@ -2,6 +2,11 @@
 
 [![Quality checks and tests](https://github.com/guzmanlopez/polars_fs_ops/actions/workflows/quality-checks-and-tests.yml/badge.svg?branch=dev)](https://github.com/guzmanlopez/polars_fs_ops/actions/workflows/quality-checks-and-tests.yml)
 [![CI](https://github.com/guzmanlopez/polars_fs_ops/actions/workflows/ci.yml/badge.svg)](https://github.com/guzmanlopez/polars_fs_ops/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue?logo=python&logoColor=white)](https://github.com/guzmanlopez/polars_fs_ops/blob/dev/pyproject.toml)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![ty](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ty/main/assets/badge/v0.json)](https://github.com/astral-sh/ty)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 
 Extremely shrimple (but not crab), this Python Polars Rust plugin provides filesystem operations such as copy, move, remove, and list directory, using file paths stored in a Polars DataFrame. It's a wrapper around Rust's standard filesystem APIs (`std::fs`), Rust rewrite of the GNU coreutils (`uutils`) and others.
 
@@ -180,7 +185,8 @@ This is where `ls_dir_with_mod` becomes useful: the directory listing is already
 
 ```python
 manifest = (
-    pl.DataFrame({"dir": [str(incoming_dir)]})
+    pl
+    .DataFrame({"dir": [str(incoming_dir)]})
     .select(ls_dir_with_mod("dir").alias("entries"))
     .explode("entries")
     .unnest("entries")
@@ -216,7 +222,8 @@ Once the file paths live in a DataFrame, filesystem actions become another expre
 
 ```python
 backup_result = (
-    manifest.with_columns(
+    manifest
+    .with_columns(
         copied=uucp_file(
             from_path="path",
             to_path=pl.lit(str(backup_dir)),
@@ -252,7 +259,8 @@ Here the destination is still expression-driven. We stage the destination direct
 
 ```python
 move_result = (
-    manifest.filter(pl.col("ext") == "csv")
+    manifest
+    .filter(pl.col("ext") == "csv")
     .with_columns(destination_dir=pl.lit(str(curated_tabular_dir)))
     .with_columns(
         moved=uumv_file(
@@ -285,7 +293,8 @@ shape: (1, 3)
 
 ```python
 cleanup_result = (
-    manifest.filter(pl.col("ext") == "log")
+    manifest
+    .filter(pl.col("ext") == "log")
     .with_columns(removed=rm_file("path", dry_run=False))
     .select("name", "removed")
 )
@@ -311,7 +320,8 @@ After the copy, move, and cleanup steps, a plain `ls_dir` is enough to verify th
 
 ```python
 incoming_now = (
-    pl.DataFrame({"dir": [str(incoming_dir)]})
+    pl
+    .DataFrame({"dir": [str(incoming_dir)]})
     .with_columns(entries=ls_dir("dir"))
     .select("entries")
     .explode("entries")
@@ -321,7 +331,8 @@ incoming_now = (
 )
 
 backup_now = (
-    pl.DataFrame({"dir": [str(backup_dir)]})
+    pl
+    .DataFrame({"dir": [str(backup_dir)]})
     .with_columns(entries=ls_dir("dir"))
     .select("entries")
     .explode("entries")
@@ -331,7 +342,8 @@ backup_now = (
 )
 
 curated_now = (
-    pl.DataFrame({"dir": [str(curated_tabular_dir)]})
+    pl
+    .DataFrame({"dir": [str(curated_tabular_dir)]})
     .with_columns(entries=ls_dir("dir"))
     .select("entries")
     .explode("entries")

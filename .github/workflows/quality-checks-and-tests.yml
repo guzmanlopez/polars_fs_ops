@@ -52,6 +52,9 @@ jobs:
            uv run ruff check
            uv run ruff format --check
 
+       - name: Check Python ${{ matrix.python-version }} static typing with ty
+         run: uv run ty check
+
        - name: Check Python ${{ matrix.python-version }} docstring coverage
          run: uv run docstr-coverage ./**/*.py --fail-under 20 --verbose=2 --skip-file-doc --skip-init
 
